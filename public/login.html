@@ -1,53 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <title>Acceso</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/styles.css">
+  
   <style>
-    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
-    .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 350px; }
-    input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-    button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-    .error { color: red; margin-top: 10px; display: none; font-size: 14px; }
+    /* Estilos específicos para centrar la tarjeta de login */
+    body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 0; }
+    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; width: 90%; max-width: 350px; }
+    input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #dee2e6; border-radius: 8px; box-sizing: border-box; font-family: inherit; }
+    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: background 0.2s; }
+    button:hover { background: #0056b3; }
+    .error { color: #dc3545; margin-top: 15px; display: none; font-size: 14px; background: #ffebee; padding: 10px; border-radius: 6px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>🔐 Pedidos Rail</h2>
+    <h2 style="margin-top:0; color:#333">🔐 Pedidos Rail</h2>
     <input type="email" id="email" placeholder="Email (ej: roberto@rail.com)">
     <input type="password" id="pass" placeholder="Contraseña">
-    <button onclick="entrar()">Entrar</button>
+    
+    <button id="btn-entrar">Entrar</button>
+    
     <p id="errorMsg" class="error"></p>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyATkItPtDhyjv9hkL54Q1JZauK5DfqdKh4",
-      authDomain: "pedidos-rail-app-2025-87f2c.firebaseapp.com",
-      projectId: "pedidos-rail-app-2025-87f2c",
-      storageBucket: "pedidos-rail-app-2025-87f2c.firebasestorage.app",
-      messagingSenderId: "31822553366",
-      appId: "1:31822553366:web:9fa1be91c895a8fdf8b037"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-
-    function entrar() {
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('pass').value;
-      const err = document.getElementById('errorMsg');
-      
-      auth.signInWithEmailAndPassword(email, pass)
-        .then(() => window.location.href = "index.html")
-        .catch(e => {
-          err.style.display = 'block';
-          err.innerText = "Error: " + e.message;
-        });
-    }
-  </script>
+  <script type="module" src="js/login.js"></script>
 </body>
 </html>

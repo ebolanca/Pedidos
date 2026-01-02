@@ -3,36 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Rail V4.5 - Importador + Precios</title>
+    <title>Admin Rail - Importador</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #f0f2f5; color: #333; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1 { margin-top: 0; color: #007bff; }
-        label { font-weight: 600; display: block; margin-top: 15px; margin-bottom: 5px; }
-        input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
-        textarea { height: 150px; font-family: monospace; white-space: pre; overflow-x: auto; }
-        button { margin-top: 20px; background: #28a745; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        body { font-family: 'Inter', sans-serif; padding: 20px; background: #f0f2f5; color: #333; margin: 0; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h1 { margin-top: 0; color: #007bff; font-size: 24px; }
+        label { font-weight: 600; display: block; margin-top: 20px; margin-bottom: 8px; font-size: 14px; color: #555; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; box-sizing: border-box; font-size: 14px; font-family: monospace; }
+        input:focus, textarea:focus { outline: none; border-color: #007bff; }
+        textarea { height: 150px; white-space: pre; overflow-x: auto; }
+        
+        button { margin-top: 25px; background: #28a745; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px rgba(40,167,69,0.2); }
         button:hover { background: #218838; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; word-break: break-word;}
-        .success { background: #d4edda; color: #155724; display: block; }
-        .error { background: #f8d7da; color: #721c24; display: block; }
-        .info { background: #cce5ff; color: #004085; display: block; }
-        .tips { background: #e9ecef; padding: 15px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
-        #authStatus { font-size: 12px; margin-bottom: 10px; font-weight: bold; }
+        button:disabled { background: #e9ecef; color: #adb5bd; cursor: not-allowed; box-shadow: none; }
+        
+        .status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; word-break: break-word; font-size: 14px; line-height: 1.5; }
+        .success { background: #d4edda; color: #155724; display: block; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; display: block; border: 1px solid #f5c6cb; }
+        .info { background: #cce5ff; color: #004085; display: block; border: 1px solid #b8daff; }
+        
+        .tips { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 13px; margin-bottom: 25px; border: 1px solid #ffeeba; line-height: 1.6; }
+        code { background: rgba(0,0,0,0.05); padding: 2px 5px; border-radius: 4px; font-family: monospace; font-weight: bold; }
+        #authStatus { font-size: 13px; margin-bottom: 15px; font-weight: 600; text-align: right; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📥 Importador Maestro V4.5</h1>
-    <div id="authStatus" style="color:#f39c12">🔌 Conectando con Firebase...</div>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start">
+        <h1>📥 Importador Maestro</h1>
+        <div id="authStatus" style="color:#f39c12">🔌 Conectando...</div>
+    </div>
     
     <div class="tips">
-        <strong>Instrucciones CSV:</strong><br>
-        1. Columnas: <code>Nombre, Cantidad, Unidad, Responsable, Categoria, Precio</code><br>
-        2. Copia del Excel/Bloc de notas y pega abajo.<br>
-        3. Pon el nombre del proveedor.
+        <strong>💡 Instrucciones CSV:</strong><br>
+        1. Columnas obligatorias: <code>Nombre, Cantidad, Unidad, Responsable, Categoria, Precio</code><br>
+        2. Copia las celdas del Excel (o el texto separado por comas) y pégalo abajo.<br>
+        3. Escribe el nombre del proveedor exactamente como quieres que aparezca.
     </div>
 
     <label>Nombre del Proveedor (Ej: Vecino)</label>
@@ -49,155 +58,8 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-<script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyATkItPtDhyjv9hkL54Q1JZauK5DfqdKh4",
-      authDomain: "pedidos-rail-app-2025-87f2c.firebaseapp.com",
-      projectId: "pedidos-rail-app-2025-87f2c",
-      storageBucket: "pedidos-rail-app-2025-87f2c.firebasestorage.app",
-      messagingSenderId: "31822553366",
-      appId: "1:31822553366:web:9fa1be91c895a8fdf8b037"
-    };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const auth = firebase.auth();
+<script type="module" src="js/admin.js"></script>
 
-    auth.signInAnonymously().then(() => {
-        document.getElementById("authStatus").innerHTML = "<span style='color:green'>✅ Conectado y autorizado.</span>";
-        habilitarBoton();
-    }).catch(e => {
-        console.error(e);
-        let msg = "❌ Error de conexión: " + e.code;
-        if(e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed') {
-            msg += "<br>👉 <b>SOLUCIÓN:</b> Activa 'Anónimo' en Authentication > Sign-in method en la consola Firebase.";
-        }
-        document.getElementById("authStatus").innerHTML = "<span style='color:red'>" + msg + "</span>";
-    });
-
-    setTimeout(() => {
-        const btn = document.getElementById("btnImport");
-        if(btn.disabled && !btn.innerText.includes("SUBIR")) {
-            document.getElementById("authStatus").innerHTML += "<br><span style='color:orange'>⚠️ Tardando mucho... Revisa tu conexión o la consola Firebase.</span>";
-        }
-    }, 5000);
-
-    function habilitarBoton() {
-        const btn = document.getElementById("btnImport");
-        btn.innerText = "🚀 SUBIR DATOS A FIREBASE";
-        btn.disabled = false;
-    }
-
-    function csvToArray(str, delimiter = ",") {
-        const rows = [];
-        let arr = [];
-        let quote = false;
-        let col = "";
-        let startIdx = str.indexOf("\n") + 1;
-        if(startIdx === 0) startIdx = 0; 
-
-        for (let i = startIdx; i < str.length; i++) {
-            let cc = str[i];
-            if (cc === '"') { quote = !quote; continue; }
-            if (cc === delimiter && !quote) { arr.push(col.trim()); col = ""; continue; }
-            if ((cc === '\r' || cc === '\n') && !quote) { 
-                if(col || arr.length > 0) arr.push(col.trim());
-                if(arr.length > 0) rows.push(arr);
-                arr = []; col = ""; continue; 
-            }
-            col += cc;
-        }
-        if(col || arr.length > 0) { arr.push(col.trim()); if(arr.length > 0) rows.push(arr); }
-        return rows;
-    }
-
-    async function procesarImportacion() {
-        const btn = document.getElementById("btnImport");
-        const status = document.getElementById("status");
-        const provName = document.getElementById("provName").value.trim();
-        const rawData = document.getElementById("csvData").value.trim();
-
-        if(!provName) return alert("❌ Escribe el nombre del proveedor.");
-        if(!rawData) return alert("❌ Pega el contenido del CSV.");
-
-        btn.disabled = true;
-        btn.innerText = "⏳ Procesando...";
-        status.className = "status info";
-        status.innerHTML = "Analizando CSV...";
-
-        try {
-            const filas = csvToArray(rawData);
-            if(filas.length === 0) throw new Error("No se han detectado filas. Revisa el formato.");
-
-            status.innerHTML = `Detectadas ${filas.length} filas. Subiendo a la nube...`;
-
-            const batch = db.batch();
-            const responsablesSet = new Set();
-            responsablesSet.add("Roberto"); 
-            
-            let count = 0;
-
-            filas.forEach((cols, index) => {
-                let nombre = cols[0];
-                if(!nombre && cols[3]) nombre = cols[3]; 
-                if(!nombre || nombre.toLowerCase() === "producto" || nombre.match(/^,+$/)) return;
-
-                let unidad = cols[2] || "ud";
-                let resp = cols[3] || "Todos";
-                let cat = cols[4] || "General";
-                // NUEVO: LEER PRECIO (COLUMNA 5)
-                let precio = cols[5] ? cols[5].trim() : "";
-
-                if(resp.includes("@")) {
-                    if(resp.includes("flor")) resp = "Flor";
-                    else if(resp.includes("jose")) resp = "Jose";
-                    else if(resp.includes("amina")) resp = "Amina";
-                    // CORRECCIÓN: Jazmín y Aarón
-                    else if(resp.includes("jazmin") || resp.includes("aaron")) resp = "Jazmín y Aarón";
-                    else if(resp.includes("cris")) resp = "Cristina";
-                    else if(resp.includes("jhoan")) resp = "Jhoan";
-                    else if(resp.includes("enrique") || resp.includes("ebolanca")) resp = "Enrique";
-                }
-                if(!resp || resp === "Responsable") resp = "Todos";
-
-                responsablesSet.add(resp);
-
-                const idDoc = provName.substring(0,3).toUpperCase() + "_" + index + "_" + nombre.substring(0,5).replace(/[^a-zA-Z0-9]/g,'');
-                const ref = db.collection("proveedores").doc(provName).collection("productos").doc(idDoc);
-                
-                batch.set(ref, {
-                    nombre: nombre.replace(/"/g, ''),
-                    unidad: unidad,
-                    responsable: resp,
-                    categoria: cat,
-                    precio: precio, // GUARDAR PRECIO
-                    proveedor: provName
-                });
-                count++;
-            });
-
-            await db.collection("proveedores").doc(provName).set({
-                creado: new Date(),
-                responsables: Array.from(responsablesSet)
-            }, { merge: true });
-
-            await batch.commit();
-
-            status.className = "status success";
-            status.innerHTML = `<b>✅ ¡SUBIDA COMPLETADA!</b><br>Proveedor: <strong>${provName}</strong><br>Productos subidos: <strong>${count}</strong><br>Responsables: ${Array.from(responsablesSet).join(", ")}`;
-            
-            document.getElementById("csvData").value = "";
-            document.getElementById("provName").value = "";
-            setTimeout(() => { btn.innerText = "🚀 SUBIR OTRO"; btn.disabled = false; }, 2000);
-            
-        } catch (e) {
-            console.error(e);
-            status.className = "status error";
-            status.innerText = "❌ ERROR: " + e.message;
-            btn.disabled = false;
-            btn.innerText = "🚀 INTENTAR DE NUEVO";
-        }
-    }
-</script>
 </body>
 </html>
