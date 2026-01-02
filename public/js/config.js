@@ -1,5 +1,6 @@
-// Configuración de Firebase y Constantes Globales
+// public/js/config.js
 
+// Configuración de Firebase
 export const firebaseConfig = {
     apiKey: "AIzaSyATkItPtDhyjv9hkL54Q1JZauK5DfqdKh4",
     authDomain: "pedidos-rail-app-2025-87f2c.firebaseapp.com",
@@ -9,11 +10,12 @@ export const firebaseConfig = {
     appId: "1:31822553366:web:9fa1be91c895a8fdf8b037"
 };
 
-export const LISTAS = {
-    ADMIN_EMAILS: ["quiebrakanto@gmail.com"],
-    LECTOR_EMAILS: ["ebolanca@hotmail.com"],
-    PROVEEDORES_LECTOR: ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"]
-};
+// CONSTANTES (Exportadas individualmente para que main.js las encuentre)
+export const ADMIN_EMAILS = ["quiebrakanto@gmail.com"];
+
+export const LECTOR_EMAILS = ["ebolanca@hotmail.com"];
+
+export const PROVEEDORES_LECTOR = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
 
 export const MAPA_USUARIOS = {
     "quiebrakanto@gmail.com": "Roberto",      
