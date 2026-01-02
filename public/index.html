@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pedidos Rail v96 (Strict & Email)</title>
+  <meta name="theme-color" content="#212529">
+   
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+  <style>
+    /* === BASE === */
+    body { margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; padding-top: 30px; font-family: 'Inter', sans-serif; background: #f2f4f8; }
+    .hidden { display: none !important; }
+    
+    /* === UI ELEMENTS === */
+    #offline-banner {
+        display: none; position: fixed; top: 30px; left: 0; width: 100%; 
+        background: #ff9800; color: white; text-align: center; 
+        font-size: 12px; font-weight: 700; padding: 4px; z-index: 9999;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    body.offline #offline-banner { display: block; }
+    body.offline { padding-top: 55px; }
+
+    #debug-bar {
+        position: fixed; top: 0; left: 0; width: 100%; height: 30px;
+        background: #222; color: #fff; font-family: monospace; font-size: 11px;
+        display: flex; align-items: center; justify-content: center; z-index: 10000;
+        border-bottom: 1px solid #444; white-space: nowrap; overflow: hidden;
+    }
+
+    #loading-screen {
+        position: fixed; top: 30px; left: 0; width: 100%; height: 100%;
+        background: #fff; z-index: 9999; display: flex; justify-content: center; align-items: center;
+        flex-direction: column; font-family: sans-serif; color: #555;
+    }
+    .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* === BOTONES & CONTROLES === */
+    .btn-logout-pill {
+        background: #f8f9fa; border: 1px solid #dee2e6; padding: 8px 16px; 
+        border-radius: 50px; font-weight: 700; color: #dc3545; 
+        cursor: pointer; font-size: 13px; text-transform: uppercase;
+        display: flex; align-items: center; gap: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: all 0.2s;
+    }
+    .btn-logout-pill:active { background: #fee; transform: scale(0.95); }
+
+    .v8-btn-filtro { 
+        flex: 1; padding: 10px; border: none; background: white; border-radius: 10px; 
+        font-weight: 600; font-size: 13px; color: #555; cursor: pointer; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s;
+        display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+    }
+    .v8-btn-filtro.activo { background: #007bff; color: white; box-shadow: 0 3px 8px rgba(0,123,255,0.25); }
+
+    /* === GESTION MODE LAYOUT === */
+    #app-mode-gestion { padding: 10px; padding-bottom: 150px; max-width: 800px; margin: 0 auto; }
+    
+    .v8-header-user { 
+        display: flex; justify-content: space-between; align-items: center; 
+        background: white; padding: 12px 16px; border-radius: 12px; margin-bottom: 15px; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #007bff;
+    }
+    .v8-user-info { font-weight: 700; color: #333; font-size: 15px; }
+    .v8-user-role { font-size: 12px; color: #666; }
+
+    .v8-prov-control { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
+    .v8-select { flex: 1; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #dee2e6; background: #fff; font-weight: 500; }
+    
+    /* === HISTORIAL CARDS === */
+    .v50-dashboard { padding: 5px; animation: fadeIn 0.3s ease; }
+    .v50-dash-title { font-size: 14px; font-weight: 700; color: #666; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .v50-hist-card {
+        background: white; border-radius: 12px; padding: 12px 16px; margin-bottom: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03); border-left: 4px solid #28a745;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .v50-hist-card.deleted { border-left-color: #dc3545; background: #fff5f5; }
+
+    .v50-hist-left { display: flex; flex-direction: column; flex: 1; }
+    .v50-hist-date { font-size: 12px; color: #999; margin-bottom: 2px; }
+    .v50-hist-user { font-size: 13px; color: #007bff; font-weight: 700; margin-bottom: 2px; } 
+    .v50-hist-prov { font-size: 15px; font-weight: 700; color: #333; }
+    
+    .v50-hist-status { 
+        font-size: 11px; font-weight: 700; color: #28a745; background: #e8f5e9; 
+        padding: 4px 8px; border-radius: 6px; text-transform: uppercase; margin-right: 10px;
+    }
+    .v50-hist-status.deleted { color: #dc3545; background: #ffebee; }
+
+    .hist-delete-btn {
+        background: #fff; border: 1px solid #ffebee; 
+        border-radius: 50%; width: 36px; height: 36px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; flex-shrink: 0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08); color: #d32f2f;
+    }
+    .hist-delete-btn:active { background: #ffebee; transform: scale(0.9); }
+    .hist-delete-btn span { font-size: 20px; }
+
+    /* === PRODUCTOS & TABLA === */
+    .v8-search-box {
+        position: sticky; top: 35px; z-index: 90; margin-bottom: 10px;
+        background: white; padding: 10px; border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; align-items: center;
+    }
+    body.offline .v8-search-box { top: 60px; }
+    .v8-search-input { width: 100%; border: none; font-size: 16px; outline: none; margin-left: 10px; font-family: 'Inter', sans-serif; }
+
+    .v8-filtros-container { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
+
+    .v8-tabla-wrapper { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); overflow: hidden; }
+    .v8-cat-header { background: #f8f9fa; color: #343a40; padding: 10px 15px; cursor: pointer; font-size: 14px; font-weight: 700; border-bottom: 1px solid #eee; }
+    
+    .v8-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f1f1f1; min-height: 60px; }
+    .v8-row-qty { background: #f0fff4; }
+    .v8-row-manual { background: #fff8e1; border-left: 4px solid #ffc107; }
+
+    .v8-prod-info { flex: 1; padding-right: 5px; display: flex; align-items: center; overflow: hidden; }
+    .v8-star { font-size: 18px; color: #ccc; margin-right: 8px; padding: 4px; cursor: pointer; flex-shrink: 0; transition: transform 0.1s; }
+    .v8-star.fav { color: #ffc107; }
+    
+    .v8-text-col { display: flex; flex-direction: column; justify-content: center; overflow: hidden; flex: 1; }
+    .v8-prod-name { font-size: 14px; font-weight: 600; color: #333; line-height: 1.3; margin-bottom: 2px; }
+    .v8-prod-unit { font-size: 11px; color: #888; font-weight: 400; margin-top: 2px; }
+    
+    .v8-note-icon { font-size: 16px; color: #ccc; cursor: pointer; margin-left: 6px; flex-shrink: 0; }
+    .v8-note-icon.has-note { color: #007bff; }
+
+    /* SELECTOR IVA */
+    .v8-iva-select {
+        font-size: 11px;
+        font-weight: 700;
+        color: #555;
+        border: 1px solid #e9ecef;
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 2px 4px;
+        margin-left: 8px;
+        outline: none;
+        height: 24px;
+        cursor: pointer;
+    }
+    .v8-iva-select:focus { border-color: #b2dfdb; background: #e0f2f1; }
+
+    .v8-suggestion { flex-shrink: 0; margin: 0 8px; min-width: 40px; display: flex; justify-content: center; }
+    .v8-btn-sug {
+        background: #fff3e0; border: 1px solid #ffe0b2; color: #f57c00;
+        border-radius: 8px; padding: 4px 8px; font-size: 11px; font-weight: 700;
+        cursor: pointer; white-space: nowrap; transition: transform 0.1s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    
+    /* INPUT SIMPLE SIN BOTONES */
+    .v8-qty-simple {
+        width: 60px;
+        height: 38px;
+        text-align: center;
+        font-size: 16px;
+        font-weight: 700;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background: #fff;
+        color: #333;
+        outline: none;
+        appearance: none;
+        margin-left: 5px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        transition: border-color 0.2s;
+    }
+    .v8-qty-simple:focus { border-color: #007bff; box-shadow: 0 0 0 2px rgba(0,123,255,0.1); }
+    
+    /* === BOTTOM BAR === */
+    .v8-bottom-zone { 
+        position: fixed; bottom: 15px; left: 15px; right: 15px; z-index: 100; 
+        background: #212529; color: white; border-radius: 16px; 
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3); padding: 5px; padding-bottom: 10px;
+    }
+    .v8-tools-row { 
+        display: flex; align-items: center; justify-content: space-between; 
+        padding: 5px 5px; border-bottom: 1px solid #444; margin-bottom: 6px; height: 50px; 
+    }
+    .v8-btn-narrow { 
+        border: none; border-radius: 50px; padding: 0 14px; height: 38px;
+        font-weight: 700; font-size: 13px; color: white !important;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s; min-width: 90px;
+    }
+    .v8-btn-narrow:active { transform: scale(0.95); }
+    .v8-btn-danger { background: #dc3545; box-shadow: 0 4px 10px rgba(220,53,69,0.3); }
+    .v8-btn-history { background: #6c757d; box-shadow: 0 4px 10px rgba(108,117,125,0.3); }
+
+    .v8-fab-center {
+        width: 48px; height: 48px; background: #4dabf7; border-radius: 50%;
+        border: 2px solid #212529; color: white; font-size: 30px; 
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 15px rgba(77, 171, 247, 0.5); cursor: pointer; transition: transform 0.1s; margin: 0 20px;
+    }
+    
+    .v8-action-bar { display: flex; align-items: center; justify-content: space-between; padding: 0 15px; }
+    .v8-counter-block { font-size: 13px; color: #ccc; font-weight: 500; }
+    .v8-total-num { font-size: 18px; font-weight: 700; color: white; margin-left: 4px; }
+    
+    .v8-right-actions { display: flex; align-items: center; gap: 8px; }
+    .v8-btn-contact {
+        width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; transition: transform 0.1s; padding: 8px;
+    }
+    .v8-btn-contact.whatsapp { background: #25D366; }
+    .v8-btn-contact.email { background: #EA4335; color: white; }
+    .v8-btn-contact svg { width: 20px; height: 20px; fill: white; }
+    
+    .v8-send-btn { 
+        background: #28a745; color: white; border: none; padding: 10px 20px; 
+        border-radius: 50px; font-weight: 700; cursor: pointer; font-size: 14px; 
+        box-shadow: 0 4px 10px rgba(40,167,69,0.3); white-space: nowrap;
+        transition: transform 0.1s; margin-left: 5px; display: flex; align-items: center; gap: 5px;
+    }
+
+    /* === MODALES === */
+    .modal-overlay { 
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px); 
+    }
+    .modal-content-simple { 
+        background: white; width: 90%; max-width: 400px; border-radius: 12px; 
+        padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+        animation: slideIn 0.2s ease-out; display: flex; flex-direction: column;
+    }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .modal-header-simple { 
+        font-weight: 700; font-size: 18px; color: #333; margin-bottom: 15px; 
+        border-bottom: 1px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-close-icon { font-size: 24px; color: #666; cursor: pointer; }
+
+    .hist-item-simple { 
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px; border-radius: 8px; background: #f8f9fa; margin-bottom: 8px; 
+        border: 1px solid #eee; transition: background 0.1s;
+    }
+    .hist-item-content { flex: 1; cursor: pointer; }
+    .hist-item-content div { font-weight: 600; color: #007bff; margin-bottom: 2px; font-size: 14px; }
+    .hist-item-content span { font-size: 12px; color: #6c757d; }
+    
+    .price-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+    .price-date { color: #666; font-size: 13px; }
+    .price-val { font-weight: 700; color: #28a745; }
+
+    /* === LECTOR MODE === */
+    .v9-app-bar {
+        background: white; padding: 15px; margin-bottom: 15px; border-radius: 0 0 16px 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between;
+    }
+    .v9-title { font-size: 20px; font-weight: 800; color: #333; letter-spacing: -0.5px; }
+    .v9-list-container { padding: 15px; padding-top: 0; }
+    .v9-card { 
+        background: white; border-radius: 12px; padding: 20px; margin-bottom: 12px; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.1s;
+        display: flex; align-items: center; justify-content: space-between; border-left: 5px solid #007bff;
+    }
+    
+    .v9-card-prod {
+        background: white; border-radius: 12px; padding: 12px; margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;
+        transition: all 0.2s; border: 1px solid #f0f0f0;
+    }
+    .v9-card-prod.checked { background: #ffebee; border-color: #ef9a9a; opacity: 0.7; }
+    .v9-card-prod.checked .v9-prod-name { text-decoration: line-through; color: #c62828; }
+
+    .v9-prod-left { flex: 1; }
+    .v9-prod-name { font-weight: 600; font-size: 15px; color: #333; }
+    .v9-prod-price-final { font-size: 12px; color: #666; font-weight: 500; margin-top: 2px; }
+
+    .v9-alert-note { 
+        font-size: 11px; color: #856404; background: #fff3cd; padding: 2px 6px; 
+        border-radius: 4px; display: inline-block; margin-top: 4px; font-weight: 700; cursor: pointer;
+    }
+    .v9-prod-right { display: flex; align-items: center; gap: 10px; }
+    .v9-qty-badge { 
+        background: #e3f2fd; color: #0d47a1; font-weight: 800; font-size: 16px; 
+        padding: 6px 10px; border-radius: 8px; min-width: 30px; text-align: center;
+    }
+    .v9-check-btn {
+        width: 44px; height: 44px; border-radius: 50%; border: 2px solid #eee; background: white;
+        display: flex; align-items: center; justify-content: center; cursor: pointer; color: #ccc; transition: all 0.2s;
+    }
+    .v9-check-btn.active { background: #dc3545; border-color: #dc3545; color: white; }
+    .v9-back-btn-container { display: flex; align-items: center; color: #666; font-weight: 600; font-size: 14px; cursor: pointer; margin-right: 15px; }
+    
+    #detallePedidoContent {
+        flex: 1; overflow-y: auto; background: #fff;
+        border: 1px solid #eee; padding: 10px; border-radius: 8px;
+        min-height: 300px; font-family: monospace; font-size: 13px; line-height: 1.4; color: #333;
+    }
+    .detail-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .detail-actions button {
+        flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 700;
+        cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+        transition: transform 0.1s;
+    }
+    .detail-actions button:active { transform: scale(0.98); }
+    .btn-copy { background: #007bff; color: white; }
+    .btn-reload { background: #28a745; color: white; }
+
+  </style>
+</head>
+
+<body>
+  <div id="debug-bar">Cargando v95...</div>
+  <div id="offline-banner">⚠️ SIN CONEXIÓN (Modo Offline)</div>
+  <div id="loading-screen"><div class="spinner"></div><div>Cargando...</div></div>
+
+  <div id="app-mode-gestion" class="hidden">
+      <div class="v8-header-user">
+          <div>
+              <div class="v8-user-info" id="v8-userDisplay">...</div>
+              <div class="v8-user-role" id="v8-roleDisplay">...</div>
+          </div>
+          <button class="btn-logout-pill" onclick="cerrarSesion()">
+              <span class="material-icons-round" style="font-size:16px">logout</span> SALIR
+          </button>
+      </div>
+
+      <div class="v8-prov-control">
+          <select id="v8-proveedor" class="v8-select" onchange="v8_cambiarProveedor()">
+              <option value="">-- Selecciona Proveedor --</option>
+          </select>
+          <div id="v8-admin-lector-toggle" class="v8-admin-toggle hidden" onclick="toggleProveedorLector()">
+              <span class="material-icons-round" style="font-size:16px">visibility</span>
+              <span>Lector</span>
+          </div>
+      </div>
+
+      <div id="v8-dashboard-panel" class="v50-dashboard">
+          <div class="v50-dash-title">Últimos Pedidos</div>
+          <div id="v8-dash-list"><div style="text-align:center; padding:20px; color:#999">Cargando actividad...</div></div>
+      </div>
+
+      <div id="v8-product-area" class="hidden">
+          <div class="v8-search-box" id="v8-search-container">
+              <span class="material-icons-round" style="color:#aaa">search</span>
+              <input type="text" id="v8-search-input" class="v8-search-input" placeholder="Buscar producto..." oninput="v8_filtrarProductos()">
+          </div>
+
+          <div class="v8-filtros-container">
+              <button class="v8-btn-filtro" id="v8-btnPedido" onclick="v8_toggleFiltro('pedido')">🛒 Pedido</button>
+              <button class="v8-btn-filtro" id="v8-btnFav" onclick="v8_toggleFiltro('favoritos')">⭐ Favs</button>
+              <button class="v8-btn-filtro" id="v8-btnExp" onclick="v8_toggleExpansion()">↕️ Exp</button>
+          </div>
+
+          <div class="v8-tabla-wrapper" id="v8-tabla-wrapper"></div>
+      </div>
+
+      <div class="v8-bottom-zone hidden" id="v8-bottom-bar">
+          <div class="v8-tools-row">
+              <button class="v8-btn-narrow v8-btn-danger" onclick="v8_borrarBorrador()">
+                  <span class="material-icons-round">delete</span> BORRAR
+              </button>
+              
+              <button class="v8-fab-center" onclick="v8_anadirManual()">
+                  <span class="material-icons-round">add</span>
+              </button>
+
+              <button class="v8-btn-narrow v8-btn-history" onclick="v8_historialSimple()">
+                  <span class="material-icons-round">history</span> HISTORIAL
+              </button>
+          </div>
+          
+          <div class="v8-action-bar">
+              <div class="v8-counter-block">
+                  Items: <span class="v8-total-num" id="v8-totalCount">0</span>
+                  <div style="font-size:10px; color:#aaa" id="v8-hidden-count"></div>
+              </div>
+
+              <div class="v8-right-actions">
+                  <button class="v8-btn-contact whatsapp" onclick="v8_compartir('whatsapp')">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24m4.52 10.2c-.19-.09-1.1-.54-1.27-.61-.17-.05-.29-.09-.4.09s-.42.54-.51.65-.19.13-.37.05a4.767 4.767 0 0 1-2.37-1.47 5.26 5.26 0 0 1-1.64-2.03c-.17-.29-.03-.44.07-.53.08-.09.19-.22.28-.33.09-.11.12-.19.18-.31.06-.12.03-.23-.01-.32-.05-.09-.41-.98-.56-1.35-.14-.36-.3-.32-.4-.32h-.35c-.12 0-.32.05-.49.23-.17.19-.64.63-.64 1.53 0 .91.66 1.78.75 1.91.09.13 1.29 1.97 3.13 2.76 1.84.79 1.84.53 2.17.49.33-.04 1.09-.45 1.25-.88.15-.43.15-.81.11-.88-.05-.07-.17-.11-.36-.2z"/></svg>
+                  </button>
+                  <button class="v8-btn-contact email" onclick="v8_compartir('email')">
+                    <span class="material-icons-round" style="font-size:20px; color:white">email</span>
+                  </button>
+                  <button class="v8-send-btn" onclick="guardarPedidoFinal()">ENVIAR</button>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <div id="app-mode-visual" class="hidden">
+      <div id="v9-view-provs" class="v9-view">
+          <div class="v9-app-bar">
+              <div class="v9-title">PEDIDOS</div>
+              <button class="btn-logout-pill" onclick="cerrarSesion()">
+                  <span class="material-icons-round" style="font-size:16px">logout</span> SALIR
+              </button>
+          </div>
+          <div class="v9-list-container" id="v9-prov-list"></div>
+          
+          <div style="padding: 10px 15px; font-weight:700; color:#888; text-transform:uppercase; font-size:13px; margin-top:10px">Historial Reciente</div>
+          <div class="v9-list-container" id="v9-dash-list" style="padding-top:0"></div>
+      </div>
+
+      <div id="v9-view-prods" class="v9-view hidden">
+          <div class="v9-app-bar">
+              <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
+                  <div class="v9-back-btn-container" onclick="v9_volverInicio()">
+                      <span class="material-icons-round">arrow_back</span>
+                      <span style="margin-left:6px">VOLVER</span>
+                  </div>
+                  <div class="v9-title" id="v9-prov-title">...</div>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center;">
+                  <button style="border:none; background:none; color:#1967d2" onclick="v9_toggleSortMode()">
+                      <span class="material-icons-round" id="v9-sort-icon">sort_by_alpha</span>
+                  </button>
+                  <button style="border:none; background:none; color:#d32f2f" onclick="v9_borrarPedidoActual()"><span class="material-icons-round">delete_forever</span></button>
+              </div>
+          </div>
+          <div id="v9-chips-container" style="padding:10px 15px; display:flex; gap:5px; overflow-x:auto;"></div>
+          <div class="v9-list-container" id="v9-prod-list"></div>
+      </div>
+  </div>
+
+  <div id="modalHistorialSimple" class="modal-overlay">
+      <div class="modal-content-simple">
+          <div class="modal-header-simple">
+              <span>Historial <span id="historialProvName">...</span></span>
+              <span class="material-icons-round modal-close-icon" onclick="document.getElementById('modalHistorialSimple').style.display='none'">close</span>
+          </div>
+          <div id="historialListContent"></div>
+          <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Solo se muestran pedidos enviados (no borrados).</div>
+      </div>
+  </div>
+
+  <div id="modalDetallePedido" class="modal-overlay">
+      <div class="modal-content-simple">
+          <div class="modal-header-simple">
+              <span id="detalleTitulo">Detalle Pedido</span>
+              <span class="material-icons-round modal-close-icon" onclick="document.getElementById('modalDetallePedido').style.display='none'">close</span>
+          </div>
+          <div id="detallePedidoContent"></div>
+          <div class="detail-actions">
+              <button class="btn-copy" onclick="v8_copiarTextoHistorial()">
+                  <span class="material-icons-round">content_copy</span> COPIAR
+              </button>
+              <button class="btn-reload" onclick="v8_cargarPedidoHistorial()">
+                  <span class="material-icons-round">restore_page</span> CARGAR
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <div id="modalPrecioHistorial" class="modal-overlay">
+      <div class="modal-content-simple">
+          <div class="modal-header-simple">
+              <span id="tituloHistorialPrecio">Historial de Precios</span>
+              <span class="material-icons-round modal-close-icon" onclick="document.getElementById('modalPrecioHistorial').style.display='none'">close</span>
+          </div>
+          <div id="listaPreciosHistorial" style="max-height:300px; overflow-y:auto"></div>
+          <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Últimos 5 cambios registrados.</div>
+      </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      document.getElementById('loading-screen').style.display = 'none'; 
+    };
+
+    const ADMIN_EMAILS = ["quiebrakanto@gmail.com"]; 
+    const LECTOR_EMAILS = ["ebolanca@hotmail.com", "cocina@rail.com"];
+    
+    const PROVEEDORES_LECTOR = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
+
+    const MAPA_USUARIOS = {
+      "quiebrakanto@gmail.com": "Roberto",      
+      "ebolanca@hotmail.com": "Roberto",        
+      "jasmiinrivas802@gmail.com": "Cristina",
+      "flor101318@gmail.com": "Flor",
+      "aaronmg995@gmail.com": "Jazmín y Aarón",    
+      "jhoansanch3z@gmail.com": "Jhoan",
+      "ami.habtany15@gmail.com": "Amina",
+      "josemartin7s.f@gmail.com": "Jose",
+    };
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyATkItPtDhyjv9hkL54Q1JZauK5DfqdKh4",
+      authDomain: "pedidos-rail-app-2025-87f2c.firebaseapp.com",
+      projectId: "pedidos-rail-app-2025-87f2c",
+      storageBucket: "pedidos-rail-app-2025-87f2c.firebasestorage.app",
+      messagingSenderId: "31822553366",
+      appId: "1:31822553366:web:9fa1be91c895a8fdf8b037"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    let db = firebase.firestore();
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {});
+
+    let auth = firebase.auth();
+    
+    let currentUser, userRole, userName, currentProv;
+    let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set(); 
+    let suggestions = {}; 
+    let v8_filter = 'todos', v8_expanded = true;
+    let v8_unsub = null; 
+    let currentLectorProv = "";
+    let writeDebounceTimer = null; 
+    let v9_currentData = {}; 
+    let v9_checkedIds = new Set(); 
+    let currentHistoryPedido = null;
+    let whitelistLector = new Set(); 
+    
+    let v9_sortMode = 'alpha'; 
+    let currentIVAProduct = null;
+
+    function haptic() { if (navigator.vibrate) navigator.vibrate(15); }
+    
+    function updateConnectionStatus() {
+        if (navigator.onLine) document.body.classList.remove('offline');
+        else document.body.classList.add('offline');
+    }
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+    updateConnectionStatus();
+
+    function redirectToLogin() {
+      setTimeout(() => { if (window.location.pathname.indexOf('login.html') === -1) window.location.href = "login.html"; }, 50);
+    }
+    
+    function iniciarApp() {
+        auth.onAuthStateChanged(user => {
+            document.getElementById('loading-screen').style.display = "none";
+
+            if (user) {
+                // FIX: Limpiar usuarios anónimos inmediatamente
+                if(user.isAnonymous) {
+                    user.delete().catch(() => auth.signOut());
+                    return;
+                }
+
+                const userEmail = user.email || '';
+                if (!userEmail) { redirectToLogin(); return; }
+
+                currentUser = userEmail.trim().toLowerCase().replace(/\s/g, '');
+                
+                if (ADMIN_EMAILS.includes(currentUser)) userRole = "admin";
+                else if (LECTOR_EMAILS.includes(currentUser)) userRole = "reader";
+                else userRole = "worker";
+
+                userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
+                
+                let displayName = userName;
+                if(currentUser === 'moisesmonsalve04@gmail.com') displayName = "Moisés (Perfil Cristina)";
+
+                if(document.getElementById("v8-userDisplay")) {
+                    document.getElementById("v8-userDisplay").innerText = displayName;
+                }
+                document.getElementById("debug-bar").innerText = `v95 | ${displayName}`;
+                
+                cargarConfigLector(); 
+                
+                if (userRole === "reader") initV9_VisualMode();
+                else initV8_GestionMode();
+            } else {
+                redirectToLogin();
+            }
+        });
+    }
+    document.addEventListener('DOMContentLoaded', iniciarApp);
+
+    function cerrarSesion() { haptic(); auth.signOut().then(() => window.location.reload()); }
+
+    function cargarConfigLector() {
+        const saved = localStorage.getItem("rail_lector_whitelist");
+        if(saved) whitelistLector = new Set(JSON.parse(saved));
+    }
+    
+    function toggleProveedorLector() {
+        if(!currentProv) return;
+        if(whitelistLector.has(currentProv)) {
+            whitelistLector.delete(currentProv);
+            document.getElementById("v8-admin-lector-toggle").classList.remove("active");
+            alert(`👁️ ${currentProv} OCULTO en modo Lector`);
+        } else {
+            whitelistLector.add(currentProv);
+            document.getElementById("v8-admin-lector-toggle").classList.add("active");
+            alert(`👁️ ${currentProv} VISIBLE en modo Lector`);
+        }
+        localStorage.setItem("rail_lector_whitelist", JSON.stringify([...whitelistLector]));
+    }
+
+    function initV8_GestionMode() {
+        document.getElementById('app-mode-gestion').classList.remove('hidden');
+        document.getElementById('v8-roleDisplay').innerText = userRole === 'admin' ? "Administrador" : "Personal";
+        if(userRole === 'admin') document.getElementById("v8-admin-lector-toggle").classList.remove("hidden");
+        cargarFavoritos();
+        v8_cargarProveedores();
+        v8_cargarDashboardHistorial(); 
+    }
+
+    function cargarFavoritos() {
+        const key = `favs_${currentUser}`;
+        const saved = localStorage.getItem(key);
+        if (saved) favorites = new Set(JSON.parse(saved));
+    }
+    function toggleFav(id) {
+        haptic();
+        if (favorites.has(id)) favorites.delete(id); else favorites.add(id);
+        localStorage.setItem(`favs_${currentUser}`, JSON.stringify([...favorites]));
+        v8_renderTabla();
+    }
+
+    function v8_cargarProveedores() {
+        const sel = document.getElementById("v8-proveedor");
+        sel.innerHTML = '<option value="">Cargando...</option>';
+        db.collection("proveedores").get().then(snap => {
+            sel.innerHTML = '<option value="">-- Selecciona Proveedor --</option>';
+            let list = [];
+            snap.forEach(doc => {
+                const d = doc.data();
+                const resp = d.responsables || [];
+                
+                // FIX v95: STRICT CHECK PERO CON LIMPIEZA DE STRING PARA EVITAR ERRORES DE ESPACIOS
+                // Si responsable es "Jose " y el usuario es "Jose", que funcione.
+                const userNormalized = userName.toLowerCase().trim();
+                const isAllowed = Array.isArray(resp) && resp.some(r => r.toLowerCase().trim() === userNormalized);
+
+                if (userRole === 'admin' || isAllowed || resp.includes("Todos")) {
+                    list.push(doc.id);
+                }
+            });
+            list.sort().forEach(p => sel.innerHTML += `<option value="${p}">${p}</option>`);
+        }).catch(err => {
+            sel.innerHTML = '<option value="">Error cargando</option>';
+        });
+    }
+
+    function v8_cargarDashboardHistorial() {
+        const dashList = document.getElementById("v8-dash-list");
+        dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando...</div>";
+        
+        let q = db.collection("pedidos");
+        if (userRole === 'worker') {
+            q = q.where("email", "==", currentUser);
+        }
+        
+        q.limit(20).get().then(snap => {
+            if (snap.empty) {
+                dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
+                return;
+            }
+            
+            let pedidos = [];
+            snap.forEach(doc => pedidos.push(doc.data()));
+            pedidos.sort((a, b) => {
+                let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
+                let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
+                return db - da;
+            });
+            pedidos = pedidos.slice(0, 10);
+            
+            let html = "";
+            pedidos.forEach(d => {
+                const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
+                const fechaStr = f.toLocaleDateString("es-ES", {day:'2-digit', month:'2-digit'});
+                const horaStr = f.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const esBorrado = d.estado === "borrado";
+                const claseCard = esBorrado ? "v50-hist-card deleted" : "v50-hist-card";
+                const claseStatus = esBorrado ? "v50-hist-status deleted" : "v50-hist-status";
+                const textoStatus = esBorrado ? "CANCELADO" : "Enviado ✅";
+
+                let userLine = "";
+                if (userRole === 'admin' && !esBorrado) {
+                    userLine = `<div class="v50-hist-user">👤 ${d.usuario}</div>`;
+                }
+
+                let btnBorrarHtml = `
+                      <div class="hist-delete-btn" onclick="event.stopPropagation(); v8_eliminarPedidoHistorial('${d.id_unico}', true)">
+                         <span class="material-icons-round">delete</span>
+                      </div>`;
+
+                html += `
+                <div class="${claseCard}">
+                    <div class="v50-hist-left" onclick="v8_verDetalleDesdeDashboard('${d.id_unico}')">
+                        <div class="v50-hist-date">📅 ${fechaStr} ${horaStr}</div>
+                        ${userLine}
+                        <div class="v50-hist-prov">${d.proveedor}</div>
+                    </div>
+                    <div class="${claseStatus}">${textoStatus}</div>
+                    ${btnBorrarHtml}
+                </div>`;
+            });
+            dashList.innerHTML = html;
+        }).catch(e => {
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error cargando historial.</div>";
+        });
+    }
+
+    function v8_verDetalleDesdeDashboard(idUnico) {
+       db.collection("pedidos").doc(idUnico).get().then(doc => {
+           if(doc.exists) {
+               currentHistoryPedido = doc.data();
+               v8_mostrarModalDetalle(currentHistoryPedido);
+           }
+       });
+    }
+
+    function v8_cambiarProveedor() {
+        if (v8_unsub) { v8_unsub(); v8_unsub = null; }
+        currentProv = document.getElementById("v8-proveedor").value;
+        const dashPanel = document.getElementById("v8-dashboard-panel");
+        const prodArea = document.getElementById("v8-product-area");
+        const bottomBar = document.getElementById("v8-bottom-bar");
+
+        document.getElementById("v8-search-input").value = ""; 
+
+        if (!currentProv) {
+            dashPanel.classList.remove("hidden");
+            prodArea.classList.add("hidden");
+            bottomBar.classList.add("hidden");
+            v8_cargarDashboardHistorial(); 
+            return;
+        }
+
+        dashPanel.classList.add("hidden");
+        prodArea.classList.remove("hidden");
+        bottomBar.classList.remove("hidden");
+        document.getElementById("v8-tabla-wrapper").innerHTML = '<div style="padding:20px;text-align:center">Cargando catálogo...</div>';
+        
+        cart = {}; cartNotes = {}; suggestions = {}; 
+        
+        db.collection("proveedores").doc(currentProv).collection("productos").get()
+            .then(async snapProds => {
+                let temp = []; 
+                snapProds.forEach(doc => {
+                    const d = doc.data();
+                    const r = d.responsable || "Todos";
+                    temp.push({ id: doc.id, ...d, responsable: r });
+                });
+                
+                allProducts = temp;
+                v8_activarSyncRealTime(); 
+                v8_calcularSugerenciasBackground();
+            })
+            .catch(err => {
+                document.getElementById("v8-tabla-wrapper").innerHTML = '<div style="padding:20px;text-align:center;color:red">Error cargando productos.</div>';
+            });
+    }
+
+    function v8_activarSyncRealTime() {
+        const docRef = db.collection("borradores").doc(currentProv);
+        v8_unsub = docRef.onSnapshot(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                cart = data.items || {};
+                cartNotes = data.notas || {};
+            } else {
+                cart = {}; cartNotes = {};
+            }
+            if(!writeDebounceTimer) {
+                v8_renderTabla(); 
+                document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
+            }
+        });
+    }
+
+    function v8_anadirManual() {
+        haptic();
+        if(!currentProv) return alert("Selecciona primero un proveedor.");
+        const nombre = prompt("📝 Nombre del producto nuevo:");
+        if(!nombre) return;
+        const cantStr = prompt("📦 Cantidad:");
+        if(!cantStr) return;
+        const cant = parseFloat(cantStr);
+        if(isNaN(cant) || cant <= 0) return alert("Cantidad inválida");
+        const cleanName = nombre.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        const idManual = `manual_${Date.now()}_${cleanName}`;
+        cart[idManual] = cant;
+        
+        v8_setQty(idManual, cant);
+    }
+
+    function v8_actualizarValoresEnTabla() {
+        allProducts.forEach(p => {
+            const qty = cart[p.id] || "";
+            const note = cartNotes[p.id] || "";
+            const inp = document.getElementById(`inp_${p.id}`);
+            const noteIcon = document.getElementById(`note_${p.id}`);
+            if (inp && document.activeElement !== inp) { inp.value = qty; }
+            if (inp) {
+                const row = inp.closest('.v8-row');
+                if (qty) { row.classList.add('v8-row-qty'); } 
+                else { row.classList.remove('v8-row-qty'); }
+            }
+            if (noteIcon) {
+                if (note) noteIcon.classList.add('has-note'); else noteIcon.classList.remove('has-note');
+            }
+        });
+        document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
+    }
+
+    function v8_escribirEnBorrador() {
+        if (writeDebounceTimer) clearTimeout(writeDebounceTimer);
+        writeDebounceTimer = setTimeout(() => {
+            const docRef = db.collection("borradores").doc(currentProv);
+            docRef.get().then(snap => {
+                if(snap.exists) {
+                    docRef.update({ 
+                        items: cart, 
+                        notas: cartNotes, 
+                        lastUpdate: new Date(), 
+                        user: userName 
+                    }).then(() => { writeDebounceTimer = null; });
+                } else {
+                    docRef.set({ 
+                        items: cart, 
+                        notas: cartNotes, 
+                        lastUpdate: new Date(), 
+                        user: userName 
+                    }).then(() => { writeDebounceTimer = null; });
+                }
+            }).catch(e => console.error("Error guardando:", e));
+        }, 500); 
+    }
+
+    function v8_setQty(id, val) { 
+        const oldQty = cart[id] || 0;
+        let newQty = 0;
+        if (val === "" || val === null || val === undefined) {
+            delete cart[id];
+            newQty = 0;
+        } else {
+            const numVal = parseFloat(val);
+            if (isNaN(numVal) || numVal <= 0) { delete cart[id]; newQty = 0; }
+            else { cart[id] = numVal; newQty = numVal; }
+        }
+        
+        v8_autoGestionPeso(id, newQty, oldQty);
+        v8_actualizarValoresEnTabla(); 
+        v8_escribirEnBorrador();
+        v8_renderTabla();
+    }
+    
+    function v8_add(id, amount) {
+        haptic();
+        const oldQty = cart[id] || 0;
+        let current = cart[id] || 0;
+        let nuevo = current + amount;
+        if (nuevo <= 0) {
+            delete cart[id];
+            nuevo = 0;
+            const inp = document.getElementById(`inp_${id}`);
+            if(inp) inp.value = "";
+        } else {
+            cart[id] = parseFloat(nuevo.toFixed(2));
+        }
+
+        v8_autoGestionPeso(id, nuevo, oldQty);
+        v8_actualizarValoresEnTabla(); 
+        v8_escribirEnBorrador();
+        v8_renderTabla();
+    }
+
+    function v8_autoGestionPeso(id, newQty, oldQty) {
+        if(!currentProv) return;
+        if (newQty <= 0) {
+            v8_actualizarPesoProducto(id, "");
+        } else {
+            const p = allProducts.find(x => x.id === id);
+            if (p) {
+                const currentWeight = (p.peso && parseFloat(p.peso) > 0) ? parseFloat(p.peso) : null;
+                if (currentWeight === null || currentWeight === oldQty) {
+                    v8_actualizarPesoProducto(id, newQty);
+                }
+            }
+        }
+    }
+    
+    function v8_borrarBorrador() {
+        haptic();
+        if(confirm("¿Estás seguro de borrar TODO el pedido de " + currentProv + "?\n\nSe registrará en el historial como CANCELADO.")) {
+            
+            const d = new Date().toISOString().split('T')[0];
+            const idBorrado = `DEL_${Date.now()}_${currentProv.replace(/[^a-zA-Z0-9]/g,'')}`;
+            
+            db.collection("pedidos").doc(idBorrado).set({
+                id_unico: idBorrado,
+                usuario: userName,
+                email: currentUser,
+                proveedor: currentProv,
+                fecha: new Date(),
+                fecha_corta: d,
+                estado: "borrado",
+                items: {}
+            }).then(() => {
+                cart = {}; cartNotes = {};
+                db.collection("borradores").doc(currentProv).delete();
+                v8_renderTabla(); 
+                alert("🗑️ Lista borrada y evento registrado en historial.");
+            });
+        }
+    }
+    
+    function v8_editarNota(id, nombreProd) {
+        const actual = cartNotes[id] || "";
+        const nueva = prompt(`Nota para ${nombreProd}:`, actual);
+        if (nueva !== null) {
+            if (nueva.trim()) cartNotes[id] = nueva.trim();
+            else delete cartNotes[id];
+            v8_actualizarValoresEnTabla();
+            v8_escribirEnBorrador();
+        }
+    }
+
+    async function v8_actualizarPrecioProducto(idProd, rawValue) {
+        if(!currentProv) return;
+        
+        let val = parseFloat(rawValue.replace(',', '.'));
+        if (isNaN(val)) val = 0;
+        const nuevoPrecio = val.toFixed(2); 
+
+        const prodRef = db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd);
+        
+        try {
+            const doc = await prodRef.get();
+            if(doc.exists) {
+                const data = doc.data();
+                const oldPrice = data.precio || "";
+                let history = data.historialPrecios || [];
+                
+                if (oldPrice !== nuevoPrecio) {
+                    const now = new Date();
+                    const lastEntry = history.length > 0 ? history[history.length - 1] : null;
+                    let isCorrection = false;
+                    
+                    if (lastEntry && lastEntry.fecha) {
+                        const lastTime = new Date(lastEntry.fecha).getTime();
+                        const diffMins = (now.getTime() - lastTime) / 60000;
+                        if (diffMins < 5) isCorrection = true;
+                    }
+
+                    if (isCorrection) {
+                        history[history.length - 1] = {
+                            fecha: now.toISOString(),
+                            precio: nuevoPrecio
+                        };
+                        await prodRef.update({ 
+                            precio: nuevoPrecio,
+                            precioAnterior: data.precioAnterior || oldPrice,
+                            historialPrecios: history
+                        });
+                    } else {
+                        history.push({ fecha: now.toISOString(), precio: nuevoPrecio });
+                        if(history.length > 5) history = history.slice(-5);
+                        
+                        await prodRef.update({ 
+                            precio: nuevoPrecio,
+                            precioAnterior: oldPrice, 
+                            historialPrecios: history
+                        });
+                    }
+                    
+                    const p = allProducts.find(x => x.id === idProd);
+                    if(p) {
+                        p.precio = nuevoPrecio;
+                        if (!isCorrection) p.precioAnterior = oldPrice;
+                        p.historialPrecios = history;
+                    }
+                    v8_renderTabla(); 
+                }
+            }
+        } catch(e) {}
+    }
+
+    function v8_actualizarPesoProducto(idProd, nuevoPeso) {
+        if(!currentProv) return;
+        db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd)
+        .update({ peso: nuevoPeso })
+        .then(() => {
+            const p = allProducts.find(x => x.id === idProd);
+            if(p) p.peso = nuevoPeso;
+            v8_renderTabla(); 
+        })
+        .catch(e => console.error("Error al guardar peso:", e));
+    }
+
+    function v8_actualizarIVAProducto(idProd, val) {
+       if(!currentProv) return;
+       let n = parseFloat(val);
+       if(isNaN(n) || n < 0) n = 0;
+       
+       const p = allProducts.find(x => x.id === idProd);
+       if(p) p.iva = n;
+       
+       v8_renderTabla(); 
+
+       db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd)
+         .update({ iva: n })
+         .catch(e => console.error("Error guardando IVA:", e));
+    }
+
+    function v8_filtrarProductos() { v8_renderTabla(); document.getElementById("v8-search-input").focus(); }
+    
+    function v8_verHistorialPrecios(idProd) {
+        const p = allProducts.find(x => x.id === idProd);
+        if(!p) return;
+        
+        const listaDiv = document.getElementById("listaPreciosHistorial");
+        listaDiv.innerHTML = "";
+        
+        const history = p.historialPrecios || [];
+        if(history.length === 0) {
+            listaDiv.innerHTML = "<div style='padding:20px; text-align:center; color:#999'>No hay historial de cambios.</div>";
+        } else {
+            [...history].reverse().forEach(h => {
+                const date = new Date(h.fecha).toLocaleDateString("es-ES", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+                listaDiv.innerHTML += `
+                    <div class="price-row">
+                        <span class="price-date">${date}</span>
+                        <span class="price-val">${h.precio}€</span>
+                    </div>
+                `;
+            });
+        }
+        
+        document.getElementById("modalPrecioHistorial").style.display = "flex";
+    }
+
+    function v8_renderTabla() {
+        const wrapper = document.getElementById("v8-tabla-wrapper");
+        
+        if(document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
+             v8_actualizarValoresEnTabla(); 
+             return;
+        }
+
+        wrapper.innerHTML = "";
+        const groups = {}; 
+        let hasItems = false;
+        const searchText = document.getElementById("v8-search-input").value.toLowerCase().trim();
+
+        let totalCoste = 0;
+        let itemsOcultos = 0;
+        
+        for (const [id, qty] of Object.entries(cart)) {
+            const p = allProducts.find(x => x.id === id);
+            if (p) {
+                const r = p.responsable ? p.responsable.trim() : "Todos";
+                const isVisible = (userRole === 'admin' || r === "Todos" || r.includes(userName));
+                
+                if (!isVisible) itemsOcultos++;
+
+                if (p.precio) {
+                    const precioBase = parseFloat(p.precio.replace(',','.')) || 0;
+                    const ivaPct = parseFloat(p.iva) || 0;
+                    
+                    const precioConIva = precioBase * (1 + (ivaPct / 100));
+                    const factorFinal = (p.peso && parseFloat(p.peso) > 0) ? parseFloat(p.peso) : parseFloat(qty);
+                    
+                    if (precioBase > 0) {
+                        totalCoste += precioConIva * factorFinal;
+                    }
+                }
+            }
+        }
+        
+        let hiddenMsg = "";
+        if (itemsOcultos > 0) hiddenMsg = `(+${itemsOcultos} de otros)`;
+        
+        document.getElementById("v8-totalCount").innerHTML = `${Object.keys(cart).length} <span style="font-size:10px">${hiddenMsg}</span> <span style="opacity:0.5; margin:0 5px">|</span> <span style="color:#28a745">${totalCoste.toFixed(2)}€</span>`;
+
+        const allIds = new Set(allProducts.map(p => p.id));
+        for (const [id, qty] of Object.entries(cart)) {
+            if (!allIds.has(id) && id.startsWith("manual_")) {
+                const parts = id.split('_');
+                let realName = "Producto Manual";
+                if(parts.length >= 3) { realName = parts.slice(2).join(' ').replace(/_/g, ' '); }
+                const manualProd = { id: id, nombre: realName, unidad: "Manual", categoria: "📌 Extras / Manual", esManual: true, responsable: "Todos" };
+                if (!groups[manualProd.categoria]) groups[manualProd.categoria] = [];
+                groups[manualProd.categoria].push(manualProd);
+                hasItems = true;
+            }
+        }
+
+        allProducts.forEach(p => {
+            const r = p.responsable ? p.responsable.trim() : "Todos";
+            if (userRole !== 'admin' && r !== "Todos" && !r.includes(userName)) return;
+
+            if (searchText && !p.nombre.toLowerCase().includes(searchText)) return;
+            if (v8_filter === 'pedido' && !cart[p.id]) return;
+            if (v8_filter === 'favoritos' && !favorites.has(p.id)) return;
+            
+            const cat = p.categoria || "General";
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(p); hasItems = true;
+        });
+
+        if (!hasItems) { wrapper.innerHTML = `<div style="text-align:center; padding:30px; color:#999">Nada que mostrar</div>`; return; }
+        
+        let catKeys = Object.keys(groups).sort();
+        if(catKeys.includes("📌 Extras / Manual")) { catKeys = catKeys.filter(c => c !== "📌 Extras / Manual"); catKeys.unshift("📌 Extras / Manual"); }
+
+        const esAdmin = (userRole === 'admin');
+
+        catKeys.forEach(cat => {
+            const cid = cat.replace(/\W/g,'_');
+            const isExpanded = v8_expanded || searchText !== ""; 
+            const header = document.createElement("div");
+            header.className = "v8-cat-header";
+            header.innerHTML = `<span>${cat}</span>`;
+            header.onclick = () => v8_toggleCat(cid);
+            wrapper.appendChild(header);
+
+            const catContainer = document.createElement("div");
+            catContainer.className = `cat-group-${cid}`;
+            if (!isExpanded) catContainer.style.display = 'none';
+
+            groups[cat].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+            groups[cat].forEach(p => {
+                const isFav = favorites.has(p.id);
+                const qty = cart[p.id] || "";
+                const hasNote = cartNotes[p.id] ? "has-note" : "";
+                const rowClass = p.esManual ? 'v8-row v8-row-manual' : `v8-row ${qty ? 'v8-row-qty' : ''}`;
+                
+                const row = document.createElement("div");
+                row.className = rowClass;
+                
+                let sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"></div>`;
+                if(suggestions[p.id] > 0 && !p.esManual) sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"><button class="v8-btn-sug" onclick="v8_setQty('${p.id}', ${suggestions[p.id]})">${suggestions[p.id]}</button></div>`;
+
+                const precioBaseStr = p.precio || ""; 
+                const pesoVal = p.peso || ""; 
+                const ivaVal = parseFloat(p.iva) || 0; 
+
+                let htmlPrecio = "";
+                let rowTotalHtml = "";
+                
+                // CALCULO DE TOTALES VISUALES
+                if (qty > 0 && precioBaseStr) {
+                      const pNum = parseFloat(precioBaseStr.replace(',','.'));
+                      const precioFinalUnitario = pNum * (1 + (ivaVal/100));
+                      const multiplicador = (pesoVal && parseFloat(pesoVal)>0) ? parseFloat(pesoVal) : parseFloat(qty);
+                      
+                      if(!isNaN(pNum)) {
+                          const totalRow = (precioFinalUnitario * multiplicador).toFixed(2);
+                          let infoIva = ivaVal > 0 ? `<span style="font-size:9px; color:#666"> (IVA ${ivaVal}%)</span>` : '';
+                          rowTotalHtml = `<span style="font-size:11px; color:#1565c0; font-weight:700; margin-left:6px; background:#e3f2fd; padding:1px 4px; border-radius:3px">= ${totalRow}€${infoIva}</span>`;
+                      }
+                }
+
+                // SI ES ADMIN (quiebrakanto), VE TODA LA HERRAMIENTA
+                if (esAdmin) {
+                    let semaforoHtml = "";
+                    if (p.precioAnterior && precioBaseStr) {
+                        const currentP = parseFloat(precioBaseStr.replace(',','.'));
+                        const prevP = parseFloat(p.precioAnterior.replace(',','.'));
+                        if(!isNaN(currentP) && !isNaN(prevP)) {
+                            if(currentP > prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#dc3545; margin-left:4px">thumb_down</span>`;
+                            else if(currentP < prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#28a745; margin-left:4px">thumb_up</span>`;
+                        }
+                    }
+
+                    const historyIconHtml = `<span class="material-icons-round" style="font-size:16px; color:#007bff; margin-left:4px; cursor:pointer" onclick="event.stopPropagation(); v8_verHistorialPrecios('${p.id}')">show_chart</span>`;
+                    
+                    const ivaOptions = [0, 4, 10, 21];
+                    let optionsHtml = "";
+                    ivaOptions.forEach(opt => {
+                        const sel = (ivaVal === opt) ? "selected" : "";
+                        const label = opt === 0 ? "IVA 0%" : `${opt}%`;
+                        optionsHtml += `<option value="${opt}" ${sel}>${label}</option>`;
+                    });
+
+                    const ivaSelectHtml = `<select class="v8-iva-select" onchange="v8_actualizarIVAProducto('${p.id}', this.value)" onclick="event.stopPropagation()">${optionsHtml}</select>`;
+                    
+                    let labelPrecioFinal = "";
+                    if (precioBaseStr && ivaVal > 0) {
+                        const baseNum = parseFloat(precioBaseStr.replace(',','.'));
+                        if (!isNaN(baseNum)) {
+                            const final = (baseNum * (1 + ivaVal/100)).toFixed(2);
+                            labelPrecioFinal = `<div style="font-size:10px; color:#1976d2; margin-top:2px; font-weight:600">Total: ${final}€</div>`;
+                        }
+                    }
+
+                    htmlPrecio = `<div style="display:flex; align-items:center; margin-left:8px;">
+                        <input type="number" value="${pesoVal}" 
+                            placeholder="Kg/Ud"
+                            style="width:40px; border:1px solid #ced4da; border-radius:4px; padding:2px; font-size:11px; text-align:center; color:#666; margin-right:4px; background:#f9f9f9"
+                            onchange="v8_actualizarPesoProducto('${p.id}', this.value)"
+                            onclick="event.stopPropagation()">
+                        
+                        <div style="display:flex; flex-direction:column; align-items:end">
+                            <div style="display:flex; align-items:center">
+                                <span style="color:#28a745; font-size:12px; margin-right:1px">€</span>
+                                <input type="text" value="${precioBaseStr}" 
+                                    placeholder="Base"
+                                    style="width:45px; border:1px solid #ced4da; border-radius:4px; padding:2px; font-size:13px; text-align:right; color:#28a745; font-weight:bold"
+                                    onchange="v8_actualizarPrecioProducto('${p.id}', this.value)"
+                                    onclick="event.stopPropagation()">
+                            </div>
+                            ${labelPrecioFinal}
+                        </div>
+
+                        ${semaforoHtml}
+                        ${historyIconHtml}
+                        ${rowTotalHtml}
+                    </div>`;
+                    
+                    row.innerHTML = `
+                        <div class="v8-prod-info">
+                            <span class="v8-star ${isFav?'fav':''}" onclick="toggleFav('${p.id}')">★</span>
+                            <div class="v8-text-col">
+                                <div class="v8-name-row" style="display:flex; align-items:center">
+                                    <div class="v8-prod-name">${p.nombre}</div>
+                                    <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g,"")}')">edit</span>
+                                    ${p.esManual ? '' : ivaSelectHtml} 
+                                </div>
+                                <div style="display:flex; align-items:center; margin-top:4px;">
+                                    <span class="v8-prod-unit">${p.unidad || ''}</span>
+                                    ${htmlPrecio}
+                                </div>
+                            </div>
+                        </div>
+                        ${sugHtml}
+                        <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                               placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    `;
+
+                } else {
+                    // SI ES TRABAJADOR O LECTOR (Modo Limpio)
+                    // (Nota: El Lector tiene su propia vista separada, esto es para trabajadores en modo Gestion)
+                    
+                    row.innerHTML = `
+                        <div class="v8-prod-info">
+                            <span class="v8-star ${isFav?'fav':''}" onclick="toggleFav('${p.id}')">★</span>
+                            <div class="v8-text-col">
+                                <div class="v8-name-row" style="display:flex; align-items:center">
+                                    <div class="v8-prod-name">${p.nombre}</div>
+                                    <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g,"")}')">edit</span>
+                                </div>
+                                <div style="display:flex; align-items:center; margin-top:4px;">
+                                    <span class="v8-prod-unit">${p.unidad || ''}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${sugHtml}
+                        <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                               placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    `;
+                }
+
+                catContainer.appendChild(row);
+            });
+            wrapper.appendChild(catContainer);
+        });
+        document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
+    }
+
+    function v8_toggleCat(cid) { const el = document.querySelector(`.cat-group-${cid}`); if(el) el.style.display = (el.style.display === 'none') ? 'block' : 'none'; }
+    function v8_toggleFiltro(f) { haptic(); v8_filter = (v8_filter===f)?'todos':f; v8_renderTabla(); }
+    function v8_toggleExpansion() { haptic(); v8_expanded=!v8_expanded; v8_renderTabla(); }
+    
+    function v8_calcularSugerenciasBackground() {
+        db.collection("pedidos").where("proveedor", "==", currentProv).limit(20).get()
+           .then(snapHist => {
+                if(snapHist.empty) return;
+                const sums = {}; const counts = {};
+                snapHist.forEach(doc => {
+                    const items = doc.data().items || {};
+                    for (const [pid, qty] of Object.entries(items)) {
+                        const q = parseFloat(qty);
+                        if (q > 0) { sums[pid] = (sums[pid] || 0) + q; counts[pid] = (counts[pid] || 0) + 1; }
+                    }
+                });
+                for (const pid in sums) {
+                    const avg = sums[pid] / counts[pid];
+                    suggestions[pid] = Math.round(avg);
+                    if (suggestions[pid] === 0) suggestions[pid] = null;
+                    
+                    const sugSlot = document.getElementById(`sug_${pid}`);
+                    if(sugSlot && suggestions[pid] > 0) sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})">${suggestions[pid]}</button>`;
+                }
+           }).catch(e => {});
+    }
+
+    function v8_compartir(metodo) {
+        haptic();
+        if(Object.keys(cart).length === 0) return alert("El pedido está vacío.");
+        const texto = v8_generarTextoResumen();
+        
+        if (metodo === 'whatsapp') {
+            const storageKey = `rail_contact_wa_${currentProv}`;
+            let phone = localStorage.getItem(storageKey);
+            if (!phone) {
+                phone = prompt(`📱 Introduce el teléfono de ${currentProv} (con prefijo 34):`, "34");
+                if (!phone) return;
+                localStorage.setItem(storageKey, phone.replace(/\D/g,''));
+            }
+            const url = `https://wa.me/${phone}?text=${encodeURIComponent(texto)}`;
+            window.open(url, '_blank');
+        } 
+        else if (metodo === 'email') {
+            // FIX v95: AUTO EMAIL REYES MAGOS
+            if(currentProv.toLowerCase().includes("reyes") && currentProv.toLowerCase().includes("magos")) {
+                const subject = `PEDIDO DE: ${userName.toUpperCase()} - ${currentProv}`;
+                const url = `mailto:bodegareyesmagos@hotmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(texto)}`;
+                window.location.href = url;
+                return;
+            }
+
+            const storageKey = `rail_contact_mail_${currentProv}`;
+            let email = localStorage.getItem(storageKey);
+            if (!email) {
+                email = prompt(`📧 Introduce el email de ${currentProv}:`, "");
+                if (!email) return;
+                localStorage.setItem(storageKey, email.trim());
+            }
+            const subject = `Pedido ${currentProv} - ${userName}`;
+            const url = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(texto)}`;
+            window.location.href = url;
+        }
+    }
+
+    function guardarPedidoFinal() {
+        haptic();
+        if(Object.keys(cart).length===0) return alert("Vacío.");
+        
+        let msgConfirm = "¿Enviar pedido y guardarlo en el historial?\n\n(Los productos seguirán marcados hasta que los borres manualmente)";
+        if(!navigator.onLine) msgConfirm += "\n\n⚠️ ESTÁS OFFLINE: El pedido se guardará en tu móvil y se enviará automáticamente cuando recuperes la conexión.";
+
+        if(!confirm(msgConfirm)) return;
+
+        const btn = document.querySelector('.v8-send-btn');
+        btn.innerText = "..."; btn.disabled = true;
+        const d = new Date().toISOString().split('T')[0];
+        const id = `${d}_${currentProv.replace(/[^a-zA-Z0-9]/g,'')}_${userName.replace(/[^a-zA-Z0-9]/g,'')}`;
+        
+        db.collection("pedidos").doc(id).set({
+            id_unico: id, usuario: userName, email: currentUser, proveedor: currentProv,
+            fecha: new Date(), fecha_corta: d, estado: "enviado", items: cart, notas: cartNotes
+        }, {merge:true}).then(() => {
+            if(!navigator.onLine) alert("📴 Guardado OFFLINE. Se subirá al recuperar conexión.");
+            else alert("✅ Guardado en Historial.\nRECUERDA: Borra los productos cuando llegue la mercancía.");
+        }).catch(e => { alert("❌ Error: " + e.message); }).finally(() => {
+            btn.innerText = "ENVIAR"; btn.disabled = false;
+        });
+    }
+
+    function v8_generarTextoResumen(pedidoData = null) {
+        const items = pedidoData ? pedidoData.items : cart;
+        const notes = pedidoData ? pedidoData.notas : cartNotes;
+        const prov = pedidoData ? pedidoData.proveedor : currentProv;
+        const user = pedidoData ? pedidoData.usuario : userName;
+        
+        let dateStr = "";
+        if (pedidoData && pedidoData.fecha) {
+            try { dateStr = pedidoData.fecha.toDate().toLocaleDateString("es-ES", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); } catch(e) {}
+        } else {
+            dateStr = new Date().toLocaleDateString("es-ES", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+        }
+
+        let t = `📝 PEDIDO ${prov}\n`;
+        t += `👤 ${user} | 📅 ${dateStr}\n`;
+        t += `--------------------------------\n`;
+
+        const lineas = [];
+        const manuales = [];
+
+        for (const [pid, qty] of Object.entries(items)) {
+            if (qty > 0) {
+                if (pid.startsWith("manual_")) {
+                    const parts = pid.split('_');
+                    const nombre = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') : "Extra";
+                    const nota = notes && notes[pid] ? ` (👀 ${notes[pid]})` : "";
+                    manuales.push({ nombre, qty, unidad: "ud", nota });
+                } else {
+                    const p = allProducts.find(x => x.id === pid);
+                    const nombre = p ? p.nombre : pid;
+                    const unidad = p ? (p.unidad || "") : "";
+                    const nota = notes && notes[pid] ? ` (👀 ${notes[pid]})` : "";
+                    lineas.push({ nombre, qty, unidad, nota });
+                }
+            }
+        }
+        
+        if(manuales.length > 0) {
+            t += `--- EXTRAS MANUALES ---\n`;
+            manuales.forEach(l => { t += `▪️ ${l.qty} ${l.unidad} - ${l.nombre}${l.nota}\n`; });
+            t += `\n`;
+        }
+        
+        lineas.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        lineas.forEach(l => { t += `▪️ ${l.qty} ${l.unidad} - ${l.nombre}${l.nota}\n`; });
+        t += `--------------------------------`;
+        return t;
+    }
+
+    // --- FUNCIÓN HISTORIAL ---
+    function v8_historialSimple() {
+        haptic();
+        document.getElementById("historialProvName").innerText = currentProv;
+        const listContent = document.getElementById("historialListContent");
+        listContent.innerHTML = "<div style='text-align:center;padding:10px;color:#999'>Cargando...</div>";
+        document.getElementById("modalHistorialSimple").style.display = "flex";
+
+        db.collection("pedidos")
+          .where("proveedor", "==", currentProv)
+          .limit(20)
+          .get()
+          .then(snap => {
+             if (snap.empty) {
+                 listContent.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>No hay historial reciente para este proveedor.</div>";
+                 return;
+             }
+             
+             let pedidos = [];
+             snap.forEach(doc => pedidos.push(doc.data()));
+             
+             pedidos = pedidos.filter(p => p.estado !== 'borrado');
+             
+             pedidos.sort((a, b) => {
+                let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
+                let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
+                return db - da;
+            });
+            
+             let html = "";
+             window.tempPedidosHistorial = pedidos;
+
+             pedidos.forEach((d, index) => {
+                 let fechaStr = "Fecha desconocida";
+                 try { 
+                    if(d.fecha && d.fecha.toDate) {
+                        fechaStr = d.fecha.toDate().toLocaleDateString("es-ES", {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+                    }
+                 } catch(e) {}
+                 
+                 const itemsCount = d.items ? Object.keys(d.items).length : 0;
+                 const esBorrado = d.estado === 'borrado';
+                 const styleBorrado = esBorrado ? "opacity:0.6; background:#fff5f5" : "";
+
+                 html += `
+                 <div class="hist-item-simple" style="${styleBorrado}">
+                     <div class="hist-item-content" onclick="v8_verDetalleHistorial(${index})">
+                         <div>${fechaStr} ${esBorrado?'(CANCELADO)':''}</div>
+                         <span>👤 ${d.usuario} - ${itemsCount} productos</span>
+                     </div>
+                     <div class="hist-delete-btn" onclick="event.stopPropagation(); v8_eliminarPedidoHistorial('${d.id_unico}')">
+                        <span class="material-icons-round">delete</span>
+                     </div>
+                 </div>`;
+             });
+             
+             listContent.innerHTML = html;
+          })
+          .catch(err => {
+              listContent.innerHTML = `<div style='text-align:center;padding:20px;color:red'>
+                  Error cargando historial.<br><small>(${err.message})</small>
+              </div>`;
+          });
+    }
+
+    function v8_eliminarPedidoHistorial(idPedido, esDashboard = false) {
+        haptic();
+        if(!confirm("¿Borrar definitivamente este pedido del historial?\n\n(Desaparecerá de la lista)")) return;
+        
+        db.collection("pedidos").doc(idPedido).delete().then(() => {
+            if(esDashboard) v8_cargarDashboardHistorial(); 
+            else v8_historialSimple(); 
+        }).catch(err => {
+            alert("Error al borrar: " + err.message);
+        });
+    }
+
+    // --- DETALLE DE HISTORIAL ---
+    async function v8_mostrarModalDetalle(pedido) {
+        currentHistoryPedido = pedido;
+
+        document.getElementById("modalHistorialSimple").style.display = "none";
+        document.getElementById("modalDetallePedido").style.display = "flex";
+        
+        let fechaStr = "";
+        try { fechaStr = pedido.fecha.toDate().toLocaleDateString("es-ES", {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); } catch(e){}
+        
+        document.getElementById("detalleTitulo").innerText = `${pedido.proveedor} (${fechaStr})`;
+        document.getElementById("detallePedidoContent").innerHTML = "<div style='text-align:center;padding:20px'>Buscando nombres reales...</div>";
+
+        let catalogoMap = {};
+        
+        if (currentProv === pedido.proveedor && allProducts.length > 0) {
+            allProducts.forEach(p => catalogoMap[p.id] = p.nombre);
+        } else {
+            try {
+                const snap = await db.collection("proveedores").doc(pedido.proveedor).collection("productos").get();
+                snap.forEach(doc => {
+                      catalogoMap[doc.id] = doc.data().nombre;
+                });
+            } catch(e) { console.log("Error cargando catálogo auxiliar", e); }
+        }
+
+        renderDetalleConNombres(pedido, catalogoMap);
+    }
+
+    function renderDetalleConNombres(pedido, catalogoMap) {
+        let itemsHtml = `<div style="padding:5px; color:#555; font-family:'Inter',sans-serif">`;
+        itemsHtml += `<div style="margin-bottom:10px; font-weight:700; color:#333; font-size:15px">👤 ${pedido.usuario}</div>`;
+        
+        const items = pedido.items || {};
+        const notes = pedido.notas || {};
+        const lineas = [];
+        
+        for (const [pid, qty] of Object.entries(items)) {
+            if (qty > 0) {
+                let nombre = catalogoMap[pid] || pid; 
+                let unidad = "";
+                let nota = notes[pid] || "";
+                
+                if (pid.startsWith("manual_")) {
+                    const parts = pid.split('_');
+                    nombre = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') : "Extra Manual";
+                    unidad = "ud";
+                }
+                
+                lineas.push({ nombre, qty, unidad, nota });
+            }
+        }
+        
+        lineas.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        
+        lineas.forEach(l => {
+            let noteBlock = "";
+            if(l.nota) noteBlock = `<div style="margin-top:2px; font-size:12px; color:#007bff; font-weight:600">📝 ${l.nota}</div>`;
+            
+            itemsHtml += `
+            <div style="padding:8px 0; border-bottom:1px solid #eee; font-size:14px">
+                <div style="display:flex; justify-content:space-between">
+                    <span>${l.nombre}</span>
+                    <strong style="color:#007bff; margin-left:10px; white-space:nowrap">${l.qty} ${l.unidad}</strong>
+                </div>
+                ${noteBlock}
+            </div>`;
+        });
+        
+        itemsHtml += `</div>`;
+        document.getElementById("detallePedidoContent").innerHTML = itemsHtml; 
+    }
+
+    function v8_verDetalleHistorial(index) {
+        const pedido = window.tempPedidosHistorial[index];
+        if (!pedido) return;
+        v8_mostrarModalDetalle(pedido);
+    }
+
+    function v8_copiarTextoHistorial() {
+        if (!currentHistoryPedido) return;
+        const texto = v8_generarTextoResumen(currentHistoryPedido);
+        navigator.clipboard.writeText(texto).then(() => {
+            alert("✅ Texto copiado al portapapeles");
+        }).catch(err => {
+            alert("No se pudo copiar automáticamente. Selecciónalo y cópialo manual.");
+        });
+    }
+
+    function v8_cargarPedidoHistorial() {
+        if (!currentHistoryPedido) return;
+        const provSelect = document.getElementById("v8-proveedor");
+        provSelect.value = currentHistoryPedido.proveedor;
+        
+        if (provSelect.value !== currentHistoryPedido.proveedor) {
+            alert("⚠️ No tienes acceso a este proveedor o no existe en tu lista.");
+            return;
+        }
+
+        if (!confirm("⚠️ ¿Quieres CARGAR estos productos en tu lista actual?\n\nSe sobreescribirá lo que tengas ahora mismo en el borrador.")) return;
+
+        v8_cambiarProveedor(); 
+
+        setTimeout(() => {
+            cart = { ...currentHistoryPedido.items };
+            cartNotes = { ...currentHistoryPedido.notas };
+            
+            v8_renderTabla();
+            v8_escribirEnBorrador();
+            
+            document.getElementById("modalDetallePedido").style.display = "none";
+            alert("✅ Pedido cargado correctamente.");
+        }, 500); 
+    }
+    
+    // --- LECTOR / VISUAL ---
+    function initV9_VisualMode() {
+        document.getElementById('app-mode-visual').classList.remove('hidden');
+        v9_cargarProveedoresResumen();
+        v9_cargarHistorialDashboard();
+    }
+    
+    function v9_toggleSortMode() {
+        haptic();
+        const btn = document.getElementById('v9-sort-icon');
+        if (v9_sortMode === 'alpha') {
+            v9_sortMode = 'category';
+            btn.innerText = 'category'; 
+        } else {
+            v9_sortMode = 'alpha';
+            btn.innerText = 'sort_by_alpha'; 
+        }
+        v9_renderListaLector();
+    }
+
+    async function v9_cargarProveedoresResumen() {
+        const cont = document.getElementById("v9-prov-list");
+        cont.innerHTML = "<div style='text-align:center;padding:20px'>Buscando pedidos ACTIVOS...</div>";
+        try {
+            const snap = await db.collection("borradores").get();
+            const provs = [];
+            snap.forEach(doc => {
+                const d = doc.data();
+                if (PROVEEDORES_LECTOR.includes(doc.id) && d.items) {
+                    const hasRealQty = Object.values(d.items).some(q => parseFloat(q) > 0);
+                    if (hasRealQty) provs.push(doc.id);
+                }
+            });
+            cont.innerHTML = "";
+            const sorted = provs.sort();
+            if (sorted.length === 0) { cont.innerHTML="<div style='text-align:center;padding:20px;color:#999'>No hay listas activas para ti.</div>"; return; }
+            sorted.forEach(p => {
+                const div = document.createElement("div");
+                div.className = "v9-card";
+                
+                let btnDel = `<div onclick="event.stopPropagation(); v9_borrarBorradorDirecto('${p}')" style="background:#ffebee; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#d32f2f; cursor:pointer"><span class="material-icons-round" style="font-size:20px">delete</span></div>`;
+
+                div.innerHTML = `
+                   <div style="font-weight:600; font-size:16px">${p}</div>
+                   <div style="display:flex; align-items:center; gap:10px">
+                       ${btnDel}
+                       <span class="material-icons-round" style="color:#ccc">chevron_right</span>
+                   </div>
+                `;
+                div.onclick = function() { v9_abrirProveedorResumen(p); };
+                cont.appendChild(div);
+            });
+        } catch(e) { cont.innerHTML="Error: "+e.message; }
+    }
+    
+    function v9_borrarBorradorDirecto(provName) {
+        haptic();
+        if(!confirm(`⚠️ ¿Borrar la lista de ${provName}?\n(Desaparecerá para todos)`)) return;
+        
+        db.collection("borradores").doc(provName).delete()
+            .then(() => {
+                v9_cargarProveedoresResumen();
+            })
+            .catch(e => {
+                console.log("Error borrando:", e);
+                v9_cargarProveedoresResumen(); 
+            });
+    }
+
+    function v9_cargarHistorialDashboard() {
+        const dashList = document.getElementById("v9-dash-list");
+        dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando historial...</div>";
+        
+        db.collection("pedidos").limit(50).get().then(snap => {
+            if (snap.empty) {
+                dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente.</div>";
+                return;
+            }
+            
+            let pedidos = [];
+            snap.forEach(doc => pedidos.push(doc.data()));
+            pedidos.sort((a, b) => {
+                let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
+                let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
+                return db - da;
+            });
+            
+            pedidos = pedidos.filter(p => PROVEEDORES_LECTOR.includes(p.proveedor));
+            pedidos = pedidos.slice(0, 10);
+            
+            if (pedidos.length === 0) {
+                 dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente (para ti).</div>";
+                 return;
+            }
+
+            let html = "";
+            pedidos.forEach(d => {
+                const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
+                const fechaStr = f.toLocaleDateString("es-ES", {day:'2-digit', month:'2-digit'});
+                const horaStr = f.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                const esBorrado = d.estado === "borrado";
+                const colorBorde = esBorrado ? "#dc3545" : "#007bff";
+                const colorTexto = esBorrado ? "#dc3545" : "#007bff";
+                const bgTexto = esBorrado ? "#ffebee" : "#e3f2fd";
+                const textoEstado = esBorrado ? "BORRADO" : "Enviado";
+
+                let btnBorrarHtml = `
+                      <div class="hist-delete-btn" onclick="v8_eliminarPedidoHistorial('${d.id_unico}', false); setTimeout(v9_cargarHistorialDashboard, 500);">
+                         <span class="material-icons-round">delete</span>
+                      </div>`;
+
+                html += `
+                <div class="v50-hist-card" style="border-left: 4px solid ${colorBorde};">
+                    <div class="v50-hist-left">
+                        <div class="v50-hist-date">📅 ${fechaStr} ${horaStr} - 👤 ${d.usuario}</div>
+                        <div class="v50-hist-prov">${d.proveedor}</div>
+                    </div>
+                    <div class="v50-hist-status" style="color:${colorTexto}; background:${bgTexto}; margin-right:5px">${textoEstado}</div>
+                    ${btnBorrarHtml}
+                </div>`;
+            });
+            dashList.innerHTML = html;
+        });
+    }
+
+    async function v9_abrirProveedorResumen(provName) {
+        currentLectorProv = provName;
+        document.getElementById("v9-view-provs").classList.add("hidden");
+        document.getElementById("v9-view-prods").classList.remove("hidden");
+        document.getElementById("v9-prov-title").innerText = provName;
+        document.getElementById("v9-prod-list").innerHTML = "<div style='padding:20px;text-align:center'>Cargando detalle...</div>";
+        v9_checkedIds.clear(); 
+
+        try {
+            const doc = await db.collection("borradores").doc(provName).get();
+            if(!doc.exists) { document.getElementById("v9-prod-list").innerHTML = "Borrador vacío."; return; }
+            
+            v9_currentData = doc.data(); 
+            v9_currentData.catalogoNombres = {};
+            v9_currentData.catalogoCategorias = {}; 
+            v9_currentData.catalogoPrecios = {}; 
+            v9_currentData.catalogoPesos = {}; 
+            
+            v9_currentData.catalogoIvas = {}; 
+
+            try {
+                const snapCat = await db.collection("proveedores").doc(provName).collection("productos").get();
+                snapCat.forEach(d => { 
+                    const data = d.data();
+                    v9_currentData.catalogoNombres[d.id] = data.nombre; 
+                    v9_currentData.catalogoCategorias[d.id] = data.categoria || "General";
+                    v9_currentData.catalogoPrecios[d.id] = data.precio || ""; 
+                    v9_currentData.catalogoPesos[d.id] = data.peso || "1"; 
+                    v9_currentData.catalogoIvas[d.id] = data.iva || 0; 
+                });
+            } catch(e) {}
+            
+            v9_renderListaLector();
+
+        } catch(e) { document.getElementById("v9-prod-list").innerHTML = "Error: " + e.message; }
+    }
+
+    function v9_renderListaLector() {
+        const items = v9_currentData.items || {};
+        const notas = v9_currentData.notas || {};
+        const catalogo = v9_currentData.catalogoNombres || {};
+        const categorias = v9_currentData.catalogoCategorias || {};
+        const precios = v9_currentData.catalogoPrecios || {}; 
+        const pesos = v9_currentData.catalogoPesos || {}; 
+        const ivas = v9_currentData.catalogoIvas || {}; 
+        
+        let totalLector = 0;
+        for(let k in items) {
+            if(items[k] > 0 && precios[k]) {
+                const pBase = parseFloat(precios[k].replace(',','.'));
+                const ivaVal = parseFloat(ivas[k]) || 0;
+                
+                // CALCULO v94: Base + IVA
+                const pConIva = pBase * (1 + ivaVal/100);
+
+                const pPeso = (pesos[k] && parseFloat(pesos[k]) > 0) ? parseFloat(pesos[k]) : parseFloat(items[k]);
+                
+                if(!isNaN(pBase)) totalLector += pConIva * pPeso;
+            }
+        }
+        
+        const tituloDiv = document.getElementById("v9-prov-title");
+        if(!tituloDiv.innerHTML.includes("Est:")) {
+             tituloDiv.innerHTML = `${currentLectorProv} <div style="font-size:13px; color:#28a745; margin-top:-2px; font-weight:600">Est: ${totalLector.toFixed(2)}€</div>`;
+        } else {
+             tituloDiv.innerHTML = `${currentLectorProv} <div style="font-size:13px; color:#28a745; margin-top:-2px; font-weight:600">Est: ${totalLector.toFixed(2)}€</div>`;
+        }
+
+        let lista = [];
+        
+        for(let k in items) {
+            if(items[k] > 0) {
+                let nombreReal = catalogo[k];
+                let categoriaReal = categorias[k] || "General";
+                let precioReal = v9_currentData.catalogoPrecios ? v9_currentData.catalogoPrecios[k] : "";
+
+                if (!nombreReal) {
+                    if (k.startsWith("manual_")) { const parts = k.split('_'); nombreReal = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') + " (M)" : "Manual"; categoriaReal="Manual"; } 
+                    else { const parts = k.split('_'); nombreReal = parts.length > 2 ? parts.slice(2).join(' ').replace(/_/g, ' ') : k; }
+                }
+                const tieneNota = notas[k] ? true : false;
+                const textoNota = notas[k] || "";
+                
+                lista.push({
+                    id: k,
+                    nombre: nombreReal,
+                    categoria: categoriaReal,
+                    precio: precioReal,
+                    cantidad: items[k],
+                    tieneNota: tieneNota,
+                    textoNota: textoNota,
+                    checked: v9_checkedIds.has(k)
+                });
+            }
+        }
+        
+        lista.sort((a, b) => {
+            if (a.checked !== b.checked) return a.checked ? 1 : -1;
+            if (v9_sortMode === 'category') {
+                 const catCompare = a.categoria.localeCompare(b.categoria);
+                 if (catCompare !== 0) return catCompare;
+            }
+            return a.nombre.localeCompare(b.nombre);
+        });
+        
+        let html = "";
+        if(lista.length === 0) html = "<div style='text-align:center;padding:20px;color:#999'>Lista vacía.</div>";
+        
+        let lastCat = "";
+
+        lista.forEach(item => {
+            if (v9_sortMode === 'category' && item.categoria !== lastCat && !item.checked) {
+                html += `<div class="v8-cat-header" style="background:#eee; margin-top:10px; font-size:12px">${item.categoria}</div>`;
+                lastCat = item.categoria;
+            }
+
+            const checkedClass = item.checked ? "checked" : "";
+            const activeClass = item.checked ? "active" : "";
+            const checkIcon = item.checked ? "remove_shopping_cart" : "check"; 
+            
+            let noteHtml = "";
+            if (item.tieneNota) {
+                noteHtml = `<div class="v9-alert-note" onclick="alert('NOTA: ${item.textoNota.replace(/'/g, "")}')">⚠️ LEER NOTA</div>`;
+            }
+
+            const precioVal = item.precio || "";
+            const ivaVal = parseFloat(ivas[item.id]) || 0;
+
+            let finalPriceHtml = "";
+            const precNum = parseFloat(precioVal.replace(',','.'));
+            
+            // Calculo SOLO VISUAL: Base * (1 + IVA)
+            if(!isNaN(precNum) && precNum > 0) {
+                 const pFinal = (precNum * (1 + ivaVal/100)).toFixed(2);
+                 finalPriceHtml = `<div class="v9-prod-price-final">${pFinal}€</div>`;
+            }
+
+            html += `
+            <div class="v9-card-prod ${checkedClass}">
+                <div class="v9-prod-left">
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="v9-prod-name">
+                            ${item.nombre}
+                        </div>
+                        ${finalPriceHtml}
+                        ${noteHtml}
+                    </div>
+                </div>
+                <div class="v9-prod-right">
+                    <div class="v9-qty-badge">${item.cantidad}</div>
+                    <button class="v9-check-btn ${activeClass}" onclick="v9_toggleCheck('${item.id}')">
+                        <span class="material-icons-round">${checkIcon}</span>
+                    </button>
+                </div>
+            </div>`;
+        });
+        
+        document.getElementById("v9-prod-list").innerHTML = html;
+    }
+
+    function v9_toggleCheck(id) {
+        haptic();
+        if (v9_checkedIds.has(id)) v9_checkedIds.delete(id);
+        else v9_checkedIds.add(id);
+        v9_renderListaLector();
+    }
+
+    async function v9_borrarPedidoActual() {
+        haptic();
+        if(!currentLectorProv) return;
+        if(!confirm(`⚠️ ¿CONFIRMAS QUE HA LLEGADO LA MERCANCÍA?\n\nEsto borrará la lista de ${currentLectorProv} para todos.`)) return;
+        try {
+            await db.collection("borradores").doc(currentLectorProv).delete();
+            v9_volverInicio();
+            v9_cargarProveedoresResumen();
+            v9_cargarHistorialDashboard(); 
+        } catch(e) { alert("Error: " + e.message); }
+    }
+
+    function v9_volverInicio() {
+        document.getElementById("v9-view-prods").classList.add("hidden");
+        document.getElementById("v9-view-provs").classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>
