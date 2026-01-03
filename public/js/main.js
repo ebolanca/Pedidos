@@ -81,7 +81,7 @@ function iniciarApp() {
                 document.getElementById("v8-userDisplay").innerText = displayName;
             }
             const debugBar = document.getElementById("debug-bar");
-            if(debugBar) debugBar.innerText = `v96 Modular | ${displayName}`;
+            if(debugBar) debugBar.innerText = `v96 | ${displayName}`;
             
             cargarConfigLector(); 
             

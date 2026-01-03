@@ -173,6 +173,16 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('v96 registrado correctamente'))
+          .catch(err => console.log('Error registro SW', err));
+      });
+    }
+  </script>
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
