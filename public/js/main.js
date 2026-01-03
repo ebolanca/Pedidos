@@ -1,39 +1,39 @@
 /* =============================================================
-   MAIN.JS - Lógica Principal (Modular)
+   MAIN.JS - Lógica Principal (v10.1 - Base de Datos)
    ============================================================= */
 
-import { firebaseConfig, ADMIN_EMAILS, LECTOR_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js';
+import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR } from './config.js';
 
 // --- INICIALIZACIÓN FIREBASE ---
-// Nota: Usamos la librería 'compat' cargada en el HTML, por lo que 'firebase' existe globalmente.
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 let db = firebase.firestore();
-// Habilitar persistencia (caché offline)
 db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-    console.log("Persistencia no disponible (posiblemente múltiples pestañas abiertas):", err.code);
+    console.log("Persistencia no disponible:", err.code);
 });
 let auth = firebase.auth();
 
-// --- VARIABLES GLOBALES DEL MÓDULO ---
+// --- VARIABLES GLOBALES ---
 let currentUser, userRole, userName, currentProv;
-let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set(); 
-let suggestions = {}; 
+let currentUserGroup = ""; // NUEVO: Grupo del usuario (Barra, Cocina, etc.)
+
+let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
+let suggestions = {};
 let v8_filter = 'todos', v8_expanded = true;
-let v8_unsub = null; 
+let v8_unsub = null;
 let currentLectorProv = "";
-let writeDebounceTimer = null; 
-let v9_currentData = {}; 
-let v9_checkedIds = new Set(); 
+let writeDebounceTimer = null;
+let v9_currentData = {};
+let v9_checkedIds = new Set();
 let currentHistoryPedido = null;
-let whitelistLector = new Set(); 
-let v9_sortMode = 'alpha'; 
+let whitelistLector = new Set();
+let v9_sortMode = 'alpha';
 let currentIVAProduct = null;
 
 // --- FUNCIONES UTILITARIAS ---
 
-window.onerror = function(message, source, lineno, colno, error) {
+window.onerror = function (message, source, lineno, colno, error) {
     const loader = document.getElementById('loading-screen');
-    if(loader) loader.style.display = 'none'; 
+    if (loader) loader.style.display = 'none';
 };
 
 function haptic() { if (navigator.vibrate) navigator.vibrate(15); }
@@ -47,87 +47,144 @@ window.addEventListener('offline', updateConnectionStatus);
 updateConnectionStatus();
 
 function redirectToLogin() {
-  setTimeout(() => { if (window.location.pathname.indexOf('login.html') === -1) window.location.href = "login.html"; }, 50);
+    setTimeout(() => { if (window.location.pathname.indexOf('login.html') === -1) window.location.href = "login.html"; }, 50);
 }
 
-// --- LÓGICA DE INICIO ---
+// --- LÓGICA DE INICIO (BD) ---
 
-function iniciarApp() {
-    auth.onAuthStateChanged(user => {
+async function iniciarApp() {
+    auth.onAuthStateChanged(async user => {
         const loader = document.getElementById('loading-screen');
-        if(loader) loader.style.display = "none";
-
+        
         if (user) {
-            if(user.isAnonymous) {
-                user.delete().catch(() => auth.signOut());
-                return;
+            if (user.isAnonymous) { user.delete(); return; }
+            
+            const userEmail = user.email.toLowerCase().trim();
+            currentUser = userEmail; 
+
+            // --- LÓGICA NUEVA: CONSULTAR BASE DE DATOS ---
+            try {
+                // Buscamos al usuario en la colección 'usuarios'
+                const docRef = await db.collection('usuarios').doc(currentUser).get();
+                
+                if (docRef.exists) {
+                    const data = docRef.data();
+                    userRole = data.rol || 'worker';
+                    userName = data.nombre || 'Usuario';
+                    currentUserGroup = data.grupo || ''; // Guardamos el grupo
+                    
+                    // Exponemos el grupo globalmente por si acaso
+                    window.currentUserGroup = currentUserGroup; 
+
+                } else {
+                    // SI NO EXISTE EN DB (Acceso Maestro para Roberto)
+                    if (currentUser === 'quiebrakanto@gmail.com') {
+                        userRole = 'admin';
+                        userName = 'Roberto';
+                        currentUserGroup = 'Todos';
+                        
+                        // Lo creamos automáticamente
+                        db.collection('usuarios').doc(currentUser).set({
+                            email: currentUser,
+                            nombre: 'Roberto',
+                            rol: 'admin',
+                            grupo: 'Todos'
+                        });
+                    } else {
+                        alert("⚠️ Usuario no registrado en la Plantilla. Contacta con el administrador.");
+                        auth.signOut();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error("Error obteniendo usuario:", e);
+                // Si falla la conexión, intentamos dejar pasar si es admin conocido (fallback)
+                if (ADMIN_EMAILS.includes(currentUser)) {
+                    userRole = 'admin';
+                    userName = 'Admin Offline';
+                } else {
+                    alert("Error de conexión verificando usuario.");
+                    return;
+                }
             }
 
-            const userEmail = user.email || '';
-            if (!userEmail) { redirectToLogin(); return; }
-
-            currentUser = userEmail.trim().toLowerCase().replace(/\s/g, '');
-            
-            if (ADMIN_EMAILS.includes(currentUser)) userRole = "admin";
-            else if (LECTOR_EMAILS.includes(currentUser)) userRole = "reader";
-            else userRole = "worker";
-
-            userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
-            
-            let displayName = userName;
-            if(currentUser === 'moisesmonsalve04@gmail.com') displayName = "Moisés (Perfil Cristina)";
-
-            if(document.getElementById("v8-userDisplay")) {
-                document.getElementById("v8-userDisplay").innerText = displayName;
+            // UI UPDATE
+            if (loader) loader.style.display = "none";
+            if (document.getElementById("v8-userDisplay")) {
+                document.getElementById("v8-userDisplay").innerText = userName;
             }
             const debugBar = document.getElementById("debug-bar");
-            if(debugBar) debugBar.innerText = `v96 Modular | ${displayName}`;
+            if (debugBar) debugBar.innerText = `v10.1 DB | ${userName}`;
+
+            cargarConfigLector();
             
-            cargarConfigLector(); 
-            
-            if (userRole === "reader") initV9_VisualMode();
-            else initV8_GestionMode();
+            // Siempre iniciamos en modo Gestión
+            initV8_GestionMode();
+
         } else {
+            if(loader) loader.style.display = "none";
             redirectToLogin();
         }
     });
 }
-// Iniciamos al cargar el DOM
+
 document.addEventListener('DOMContentLoaded', iniciarApp);
 
-function cerrarSesion() { 
-    haptic(); 
-    auth.signOut().then(() => window.location.reload()); 
+function cerrarSesion() {
+    haptic();
+    auth.signOut().then(() => window.location.reload());
 }
 
 function cargarConfigLector() {
     const saved = localStorage.getItem("rail_lector_whitelist");
-    if(saved) whitelistLector = new Set(JSON.parse(saved));
+    if (saved) whitelistLector = new Set(JSON.parse(saved));
 }
 
-function toggleProveedorLector() {
-    if(!currentProv) return;
-    if(whitelistLector.has(currentProv)) {
-        whitelistLector.delete(currentProv);
-        document.getElementById("v8-admin-lector-toggle").classList.remove("active");
-        alert(`👁️ ${currentProv} OCULTO en modo Lector`);
-    } else {
-        whitelistLector.add(currentProv);
-        document.getElementById("v8-admin-lector-toggle").classList.add("active");
-        alert(`👁️ ${currentProv} VISIBLE en modo Lector`);
+/* --- NAVEGACIÓN ADMIN <-> LECTOR --- */
+
+function irAModoLector() {
+    haptic();
+    document.getElementById('app-mode-gestion').classList.add('hidden');
+    document.getElementById('app-mode-visual').classList.remove('hidden');
+
+    const btnSalida = document.getElementById('btn-salida-lector');
+    if(btnSalida) {
+        btnSalida.innerHTML = '<span class="material-icons-round" style="font-size:16px">arrow_back</span> VOLVER';
+        btnSalida.onclick = salirDeModoLector;
     }
-    localStorage.setItem("rail_lector_whitelist", JSON.stringify([...whitelistLector]));
+    initV9_VisualMode();
 }
 
-// --- MODO GESTIÓN (TRABAJADORES/ADMIN) ---
+function salirDeModoLector() {
+    haptic();
+    document.getElementById('app-mode-visual').classList.add('hidden');
+    document.getElementById('app-mode-gestion').classList.remove('hidden');
+}
 
 function initV8_GestionMode() {
     document.getElementById('app-mode-gestion').classList.remove('hidden');
     document.getElementById('v8-roleDisplay').innerText = userRole === 'admin' ? "Administrador" : "Personal";
-    if(userRole === 'admin') document.getElementById("v8-admin-lector-toggle").classList.remove("hidden");
+
+    // MOSTRAR BOTONES DE ADMIN (LECTOR Y EQUIPO)
+    if (userRole === 'admin') {
+        document.getElementById("v8-admin-lector-toggle").classList.remove("hidden");
+        document.getElementById("v8-admin-lector-toggle").style.display = "flex";
+        
+        // Botón Plantilla
+        const btnPlantilla = document.getElementById("btn-admin-plantilla");
+        if(btnPlantilla) {
+            btnPlantilla.classList.remove("hidden");
+            btnPlantilla.style.display = "flex";
+        }
+    } else {
+        document.getElementById("v8-admin-lector-toggle").classList.add("hidden");
+        const btnPlantilla = document.getElementById("btn-admin-plantilla");
+        if(btnPlantilla) btnPlantilla.classList.add("hidden");
+    }
+
     cargarFavoritos();
     v8_cargarProveedores();
-    v8_cargarDashboardHistorial(); 
+    v8_cargarDashboardHistorial();
 }
 
 function cargarFavoritos() {
@@ -150,12 +207,27 @@ function v8_cargarProveedores() {
         let list = [];
         snap.forEach(doc => {
             const d = doc.data();
-            const resp = d.responsables || [];
-            
-            const userNormalized = userName.toLowerCase().trim();
-            const isAllowed = Array.isArray(resp) && resp.some(r => r.toLowerCase().trim() === userNormalized);
+            const resp = d.responsables || []; // Array de responsables
+            const rString = (d.responsables || []).join(" ").toLowerCase(); // Para búsqueda simple
 
-            if (userRole === 'admin' || isAllowed || resp.includes("Todos")) {
+            // FILTRO DE VISIBILIDAD (DB + GRUPO)
+            // Visible si: Soy Admin O está asignado a "Todos" O incluye mi Nombre O incluye mi Grupo
+            const userNorm = userName.toLowerCase().trim();
+            const groupNorm = (currentUserGroup || "").toLowerCase().trim();
+
+            let isAllowed = false;
+            
+            if (userRole === 'admin') isAllowed = true;
+            else if (resp.includes("Todos")) isAllowed = true;
+            else {
+                // Chequear coincidencia parcial en array
+                isAllowed = resp.some(r => {
+                    const rLow = r.toLowerCase();
+                    return rLow.includes(userNorm) || (groupNorm && rLow.includes(groupNorm));
+                });
+            }
+
+            if (isAllowed) {
                 list.push(doc.id);
             }
         });
@@ -168,18 +240,18 @@ function v8_cargarProveedores() {
 function v8_cargarDashboardHistorial() {
     const dashList = document.getElementById("v8-dash-list");
     dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando...</div>";
-    
+
     let q = db.collection("pedidos");
     if (userRole === 'worker') {
         q = q.where("email", "==", currentUser);
     }
-    
+
     q.limit(20).get().then(snap => {
         if (snap.empty) {
             dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
             return;
         }
-        
+
         let pedidos = [];
         snap.forEach(doc => pedidos.push(doc.data()));
         pedidos.sort((a, b) => {
@@ -188,12 +260,12 @@ function v8_cargarDashboardHistorial() {
             return db - da;
         });
         pedidos = pedidos.slice(0, 10);
-        
+
         let html = "";
         pedidos.forEach(d => {
             const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
-            const fechaStr = f.toLocaleDateString("es-ES", {day:'2-digit', month:'2-digit'});
-            const horaStr = f.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const fechaStr = f.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' });
+            const horaStr = f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const esBorrado = d.estado === "borrado";
             const claseCard = esBorrado ? "v50-hist-card deleted" : "v50-hist-card";
             const claseStatus = esBorrado ? "v50-hist-status deleted" : "v50-hist-status";
@@ -227,12 +299,12 @@ function v8_cargarDashboardHistorial() {
 }
 
 function v8_verDetalleDesdeDashboard(idUnico) {
-   db.collection("pedidos").doc(idUnico).get().then(doc => {
-       if(doc.exists) {
-           currentHistoryPedido = doc.data();
-           v8_mostrarModalDetalle(currentHistoryPedido);
-       }
-   });
+    db.collection("pedidos").doc(idUnico).get().then(doc => {
+        if (doc.exists) {
+            currentHistoryPedido = doc.data();
+            v8_mostrarModalDetalle(currentHistoryPedido);
+        }
+    });
 }
 
 function v8_cambiarProveedor() {
@@ -242,13 +314,13 @@ function v8_cambiarProveedor() {
     const prodArea = document.getElementById("v8-product-area");
     const bottomBar = document.getElementById("v8-bottom-bar");
 
-    document.getElementById("v8-search-input").value = ""; 
+    document.getElementById("v8-search-input").value = "";
 
     if (!currentProv) {
         dashPanel.classList.remove("hidden");
         prodArea.classList.add("hidden");
         bottomBar.classList.add("hidden");
-        v8_cargarDashboardHistorial(); 
+        v8_cargarDashboardHistorial();
         return;
     }
 
@@ -256,20 +328,20 @@ function v8_cambiarProveedor() {
     prodArea.classList.remove("hidden");
     bottomBar.classList.remove("hidden");
     document.getElementById("v8-tabla-wrapper").innerHTML = '<div style="padding:20px;text-align:center">Cargando catálogo...</div>';
-    
-    cart = {}; cartNotes = {}; suggestions = {}; 
-    
+
+    cart = {}; cartNotes = {}; suggestions = {};
+
     db.collection("proveedores").doc(currentProv).collection("productos").get()
         .then(async snapProds => {
-            let temp = []; 
+            let temp = [];
             snapProds.forEach(doc => {
                 const d = doc.data();
                 const r = d.responsable || "Todos";
                 temp.push({ id: doc.id, ...d, responsable: r });
             });
-            
+
             allProducts = temp;
-            v8_activarSyncRealTime(); 
+            v8_activarSyncRealTime();
             v8_calcularSugerenciasBackground();
         })
         .catch(err => {
@@ -287,8 +359,8 @@ function v8_activarSyncRealTime() {
         } else {
             cart = {}; cartNotes = {};
         }
-        if(!writeDebounceTimer) {
-            v8_renderTabla(); 
+        if (!writeDebounceTimer) {
+            v8_renderTabla();
             document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
         }
     });
@@ -296,17 +368,17 @@ function v8_activarSyncRealTime() {
 
 function v8_anadirManual() {
     haptic();
-    if(!currentProv) return alert("Selecciona primero un proveedor.");
+    if (!currentProv) return alert("Selecciona primero un proveedor.");
     const nombre = prompt("📝 Nombre del producto nuevo:");
-    if(!nombre) return;
+    if (!nombre) return;
     const cantStr = prompt("📦 Cantidad:");
-    if(!cantStr) return;
+    if (!cantStr) return;
     const cant = parseFloat(cantStr);
-    if(isNaN(cant) || cant <= 0) return alert("Cantidad inválida");
+    if (isNaN(cant) || cant <= 0) return alert("Cantidad inválida");
     const cleanName = nombre.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
     const idManual = `manual_${Date.now()}_${cleanName}`;
     cart[idManual] = cant;
-    
+
     v8_setQty(idManual, cant);
 }
 
@@ -319,7 +391,7 @@ function v8_actualizarValoresEnTabla() {
         if (inp && document.activeElement !== inp) { inp.value = qty; }
         if (inp) {
             const row = inp.closest('.v8-row');
-            if (qty) { row.classList.add('v8-row-qty'); } 
+            if (qty) { row.classList.add('v8-row-qty'); }
             else { row.classList.remove('v8-row-qty'); }
         }
         if (noteIcon) {
@@ -334,26 +406,26 @@ function v8_escribirEnBorrador() {
     writeDebounceTimer = setTimeout(() => {
         const docRef = db.collection("borradores").doc(currentProv);
         docRef.get().then(snap => {
-            if(snap.exists) {
-                docRef.update({ 
-                    items: cart, 
-                    notas: cartNotes, 
-                    lastUpdate: new Date(), 
-                    user: userName 
+            if (snap.exists) {
+                docRef.update({
+                    items: cart,
+                    notas: cartNotes,
+                    lastUpdate: new Date(),
+                    user: userName
                 }).then(() => { writeDebounceTimer = null; });
             } else {
-                docRef.set({ 
-                    items: cart, 
-                    notas: cartNotes, 
-                    lastUpdate: new Date(), 
-                    user: userName 
+                docRef.set({
+                    items: cart,
+                    notas: cartNotes,
+                    lastUpdate: new Date(),
+                    user: userName
                 }).then(() => { writeDebounceTimer = null; });
             }
         }).catch(e => console.error("Error guardando:", e));
-    }, 500); 
+    }, 500);
 }
 
-function v8_setQty(id, val) { 
+function v8_setQty(id, val) {
     const oldQty = cart[id] || 0;
     let newQty = 0;
     if (val === "" || val === null || val === undefined) {
@@ -364,9 +436,9 @@ function v8_setQty(id, val) {
         if (isNaN(numVal) || numVal <= 0) { delete cart[id]; newQty = 0; }
         else { cart[id] = numVal; newQty = numVal; }
     }
-    
+
     v8_autoGestionPeso(id, newQty, oldQty);
-    v8_actualizarValoresEnTabla(); 
+    v8_actualizarValoresEnTabla();
     v8_escribirEnBorrador();
     v8_renderTabla();
 }
@@ -380,19 +452,19 @@ function v8_add(id, amount) {
         delete cart[id];
         nuevo = 0;
         const inp = document.getElementById(`inp_${id}`);
-        if(inp) inp.value = "";
+        if (inp) inp.value = "";
     } else {
         cart[id] = parseFloat(nuevo.toFixed(2));
     }
 
     v8_autoGestionPeso(id, nuevo, oldQty);
-    v8_actualizarValoresEnTabla(); 
+    v8_actualizarValoresEnTabla();
     v8_escribirEnBorrador();
     v8_renderTabla();
 }
 
 function v8_autoGestionPeso(id, newQty, oldQty) {
-    if(!currentProv) return;
+    if (!currentProv) return;
     if (newQty <= 0) {
         v8_actualizarPesoProducto(id, "");
     } else {
@@ -408,11 +480,11 @@ function v8_autoGestionPeso(id, newQty, oldQty) {
 
 function v8_borrarBorrador() {
     haptic();
-    if(confirm("¿Estás seguro de borrar TODO el pedido de " + currentProv + "?\n\nSe registrará en el historial como CANCELADO.")) {
-        
+    if (confirm("¿Estás seguro de borrar TODO el pedido de " + currentProv + "?\n\nSe registrará en el historial como CANCELADO.")) {
+
         const d = new Date().toISOString().split('T')[0];
-        const idBorrado = `DEL_${Date.now()}_${currentProv.replace(/[^a-zA-Z0-9]/g,'')}`;
-        
+        const idBorrado = `DEL_${Date.now()}_${currentProv.replace(/[^a-zA-Z0-9]/g, '')}`;
+
         db.collection("pedidos").doc(idBorrado).set({
             id_unico: idBorrado,
             usuario: userName,
@@ -425,7 +497,7 @@ function v8_borrarBorrador() {
         }).then(() => {
             cart = {}; cartNotes = {};
             db.collection("borradores").doc(currentProv).delete();
-            v8_renderTabla(); 
+            v8_renderTabla();
             alert("🗑️ Lista borrada y evento registrado en historial.");
         });
     }
@@ -443,26 +515,26 @@ function v8_editarNota(id, nombreProd) {
 }
 
 async function v8_actualizarPrecioProducto(idProd, rawValue) {
-    if(!currentProv) return;
-    
+    if (!currentProv) return;
+
     let val = parseFloat(rawValue.replace(',', '.'));
     if (isNaN(val)) val = 0;
-    const nuevoPrecio = val.toFixed(2); 
+    const nuevoPrecio = val.toFixed(2);
 
     const prodRef = db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd);
-    
+
     try {
         const doc = await prodRef.get();
-        if(doc.exists) {
+        if (doc.exists) {
             const data = doc.data();
             const oldPrice = data.precio || "";
             let history = data.historialPrecios || [];
-            
+
             if (oldPrice !== nuevoPrecio) {
                 const now = new Date();
                 const lastEntry = history.length > 0 ? history[history.length - 1] : null;
                 let isCorrection = false;
-                
+
                 if (lastEntry && lastEntry.fecha) {
                     const lastTime = new Date(lastEntry.fecha).getTime();
                     const diffMins = (now.getTime() - lastTime) / 60000;
@@ -474,76 +546,76 @@ async function v8_actualizarPrecioProducto(idProd, rawValue) {
                         fecha: now.toISOString(),
                         precio: nuevoPrecio
                     };
-                    await prodRef.update({ 
+                    await prodRef.update({
                         precio: nuevoPrecio,
                         precioAnterior: data.precioAnterior || oldPrice,
                         historialPrecios: history
                     });
                 } else {
                     history.push({ fecha: now.toISOString(), precio: nuevoPrecio });
-                    if(history.length > 5) history = history.slice(-5);
-                    
-                    await prodRef.update({ 
+                    if (history.length > 5) history = history.slice(-5);
+
+                    await prodRef.update({
                         precio: nuevoPrecio,
-                        precioAnterior: oldPrice, 
+                        precioAnterior: oldPrice,
                         historialPrecios: history
                     });
                 }
-                
+
                 const p = allProducts.find(x => x.id === idProd);
-                if(p) {
+                if (p) {
                     p.precio = nuevoPrecio;
                     if (!isCorrection) p.precioAnterior = oldPrice;
                     p.historialPrecios = history;
                 }
-                v8_renderTabla(); 
+                v8_renderTabla();
             }
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 function v8_actualizarPesoProducto(idProd, nuevoPeso) {
-    if(!currentProv) return;
+    if (!currentProv) return;
     db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd)
-    .update({ peso: nuevoPeso })
-    .then(() => {
-        const p = allProducts.find(x => x.id === idProd);
-        if(p) p.peso = nuevoPeso;
-        v8_renderTabla(); 
-    })
-    .catch(e => console.error("Error al guardar peso:", e));
+        .update({ peso: nuevoPeso })
+        .then(() => {
+            const p = allProducts.find(x => x.id === idProd);
+            if (p) p.peso = nuevoPeso;
+            v8_renderTabla();
+        })
+        .catch(e => console.error("Error al guardar peso:", e));
 }
 
 function v8_actualizarIVAProducto(idProd, val) {
-   if(!currentProv) return;
-   let n = parseFloat(val);
-   if(isNaN(n) || n < 0) n = 0;
-   
-   const p = allProducts.find(x => x.id === idProd);
-   if(p) p.iva = n;
-   
-   v8_renderTabla(); 
+    if (!currentProv) return;
+    let n = parseFloat(val);
+    if (isNaN(n) || n < 0) n = 0;
 
-   db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd)
-     .update({ iva: n })
-     .catch(e => console.error("Error guardando IVA:", e));
+    const p = allProducts.find(x => x.id === idProd);
+    if (p) p.iva = n;
+
+    v8_renderTabla();
+
+    db.collection("proveedores").doc(currentProv).collection("productos").doc(idProd)
+        .update({ iva: n })
+        .catch(e => console.error("Error guardando IVA:", e));
 }
 
 function v8_filtrarProductos() { v8_renderTabla(); document.getElementById("v8-search-input").focus(); }
 
 function v8_verHistorialPrecios(idProd) {
     const p = allProducts.find(x => x.id === idProd);
-    if(!p) return;
-    
+    if (!p) return;
+
     const listaDiv = document.getElementById("listaPreciosHistorial");
     listaDiv.innerHTML = "";
-    
+
     const history = p.historialPrecios || [];
-    if(history.length === 0) {
+    if (history.length === 0) {
         listaDiv.innerHTML = "<div style='padding:20px; text-align:center; color:#999'>No hay historial de cambios.</div>";
     } else {
         [...history].reverse().forEach(h => {
-            const date = new Date(h.fecha).toLocaleDateString("es-ES", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+            const date = new Date(h.fecha).toLocaleDateString("es-ES", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
             listaDiv.innerHTML += `
                 <div class="price-row">
                     <span class="price-date">${date}</span>
@@ -552,52 +624,55 @@ function v8_verHistorialPrecios(idProd) {
             `;
         });
     }
-    
+
     document.getElementById("modalPrecioHistorial").style.display = "flex";
 }
 
 function v8_renderTabla() {
     const wrapper = document.getElementById("v8-tabla-wrapper");
-    
-    if(document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
-         v8_actualizarValoresEnTabla(); 
-         return;
+
+    if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
+        v8_actualizarValoresEnTabla();
+        return;
     }
 
     wrapper.innerHTML = "";
-    const groups = {}; 
+    const groups = {};
     let hasItems = false;
     const searchEl = document.getElementById("v8-search-input");
     const searchText = searchEl ? searchEl.value.toLowerCase().trim() : "";
 
     let totalCoste = 0;
     let itemsOcultos = 0;
-    
+
     for (const [id, qty] of Object.entries(cart)) {
         const p = allProducts.find(x => x.id === id);
         if (p) {
             const r = p.responsable ? p.responsable.trim() : "Todos";
-            const isVisible = (userRole === 'admin' || r === "Todos" || r.includes(userName));
             
+            // --- NUEVO FILTRO VISIBILIDAD EN CARRITO ---
+            const miGrupo = currentUserGroup || "";
+            const isVisible = (userRole === 'admin' || r === "Todos" || r.includes(userName) || (miGrupo && r.includes(miGrupo)));
+
             if (!isVisible) itemsOcultos++;
 
             if (p.precio) {
-                const precioBase = parseFloat(p.precio.replace(',','.')) || 0;
+                const precioBase = parseFloat(p.precio.replace(',', '.')) || 0;
                 const ivaPct = parseFloat(p.iva) || 0;
-                
+
                 const precioConIva = precioBase * (1 + (ivaPct / 100));
                 const factorFinal = (p.peso && parseFloat(p.peso) > 0) ? parseFloat(p.peso) : parseFloat(qty);
-                
+
                 if (precioBase > 0) {
                     totalCoste += precioConIva * factorFinal;
                 }
             }
         }
     }
-    
+
     let hiddenMsg = "";
     if (itemsOcultos > 0) hiddenMsg = `(+${itemsOcultos} de otros)`;
-    
+
     document.getElementById("v8-totalCount").innerHTML = `${Object.keys(cart).length} <span style="font-size:10px">${hiddenMsg}</span> <span style="opacity:0.5; margin:0 5px">|</span> <span style="color:#28a745">${totalCoste.toFixed(2)}€</span>`;
 
     const allIds = new Set(allProducts.map(p => p.id));
@@ -605,7 +680,7 @@ function v8_renderTabla() {
         if (!allIds.has(id) && id.startsWith("manual_")) {
             const parts = id.split('_');
             let realName = "Producto Manual";
-            if(parts.length >= 3) { realName = parts.slice(2).join(' ').replace(/_/g, ' '); }
+            if (parts.length >= 3) { realName = parts.slice(2).join(' ').replace(/_/g, ' '); }
             const manualProd = { id: id, nombre: realName, unidad: "Manual", categoria: "📌 Extras / Manual", esManual: true, responsable: "Todos" };
             if (!groups[manualProd.categoria]) groups[manualProd.categoria] = [];
             groups[manualProd.categoria].push(manualProd);
@@ -615,27 +690,33 @@ function v8_renderTabla() {
 
     allProducts.forEach(p => {
         const r = p.responsable ? p.responsable.trim() : "Todos";
-        if (userRole !== 'admin' && r !== "Todos" && !r.includes(userName)) return;
+        
+        // --- NUEVO FILTRO VISIBILIDAD LISTA ---
+        const miGrupo = currentUserGroup || "";
+        // Visible si: Soy Admin O es Todos O mi nombre está incluido O mi GRUPO está incluido
+        const isVisible = (userRole === 'admin' || r === "Todos" || r.includes(userName) || (miGrupo && r.includes(miGrupo)));
+        
+        if (!isVisible) return;
 
         if (searchText && !p.nombre.toLowerCase().includes(searchText)) return;
         if (v8_filter === 'pedido' && !cart[p.id]) return;
         if (v8_filter === 'favoritos' && !favorites.has(p.id)) return;
-        
+
         const cat = p.categoria || "General";
         if (!groups[cat]) groups[cat] = [];
         groups[cat].push(p); hasItems = true;
     });
 
     if (!hasItems) { wrapper.innerHTML = `<div style="text-align:center; padding:30px; color:#999">Nada que mostrar</div>`; return; }
-    
+
     let catKeys = Object.keys(groups).sort();
-    if(catKeys.includes("📌 Extras / Manual")) { catKeys = catKeys.filter(c => c !== "📌 Extras / Manual"); catKeys.unshift("📌 Extras / Manual"); }
+    if (catKeys.includes("📌 Extras / Manual")) { catKeys = catKeys.filter(c => c !== "📌 Extras / Manual"); catKeys.unshift("📌 Extras / Manual"); }
 
     const esAdmin = (userRole === 'admin');
 
     catKeys.forEach(cat => {
-        const cid = cat.replace(/\W/g,'_');
-        const isExpanded = v8_expanded || searchText !== ""; 
+        const cid = cat.replace(/\W/g, '_');
+        const isExpanded = v8_expanded || searchText !== "";
         const header = document.createElement("div");
         header.className = "v8-cat-header";
         header.innerHTML = `<span>${cat}</span>`;
@@ -653,47 +734,47 @@ function v8_renderTabla() {
             const qty = cart[p.id] || "";
             const hasNote = cartNotes[p.id] ? "has-note" : "";
             const rowClass = p.esManual ? 'v8-row v8-row-manual' : `v8-row ${qty ? 'v8-row-qty' : ''}`;
-            
+
             const row = document.createElement("div");
             row.className = rowClass;
-            
-            let sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"></div>`;
-            if(suggestions[p.id] > 0 && !p.esManual) sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"><button class="v8-btn-sug" onclick="v8_setQty('${p.id}', ${suggestions[p.id]})">${suggestions[p.id]}</button></div>`;
 
-            const precioBaseStr = p.precio || ""; 
-            const pesoVal = p.peso || ""; 
-            const ivaVal = parseFloat(p.iva) || 0; 
+            let sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"></div>`;
+            if (suggestions[p.id] > 0 && !p.esManual) sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"><button class="v8-btn-sug" onclick="v8_setQty('${p.id}', ${suggestions[p.id]})">${suggestions[p.id]}</button></div>`;
+
+            const precioBaseStr = p.precio || "";
+            const pesoVal = p.peso || "";
+            const ivaVal = parseFloat(p.iva) || 0;
 
             let htmlPrecio = "";
             let rowTotalHtml = "";
-            
+
             // CALCULO DE TOTALES VISUALES
             if (qty > 0 && precioBaseStr) {
-                  const pNum = parseFloat(precioBaseStr.replace(',','.'));
-                  const precioFinalUnitario = pNum * (1 + (ivaVal/100));
-                  const multiplicador = (pesoVal && parseFloat(pesoVal)>0) ? parseFloat(pesoVal) : parseFloat(qty);
-                  
-                  if(!isNaN(pNum)) {
-                      const totalRow = (precioFinalUnitario * multiplicador).toFixed(2);
-                      let infoIva = ivaVal > 0 ? `<span style="font-size:9px; color:#666"> (IVA ${ivaVal}%)</span>` : '';
-                      rowTotalHtml = `<span style="font-size:11px; color:#1565c0; font-weight:700; margin-left:6px; background:#e3f2fd; padding:1px 4px; border-radius:3px">= ${totalRow}€${infoIva}</span>`;
-                  }
+                const pNum = parseFloat(precioBaseStr.replace(',', '.'));
+                const precioFinalUnitario = pNum * (1 + (ivaVal / 100));
+                const multiplicador = (pesoVal && parseFloat(pesoVal) > 0) ? parseFloat(pesoVal) : parseFloat(qty);
+
+                if (!isNaN(pNum)) {
+                    const totalRow = (precioFinalUnitario * multiplicador).toFixed(2);
+                    let infoIva = ivaVal > 0 ? `<span style="font-size:9px; color:#666"> (IVA ${ivaVal}%)</span>` : '';
+                    rowTotalHtml = `<span style="font-size:11px; color:#1565c0; font-weight:700; margin-left:6px; background:#e3f2fd; padding:1px 4px; border-radius:3px">= ${totalRow}€${infoIva}</span>`;
+                }
             }
 
-            // SI ES ADMIN (quiebrakanto), VE TODA LA HERRAMIENTA
+            // SI ES ADMIN, VE TODA LA HERRAMIENTA
             if (esAdmin) {
                 let semaforoHtml = "";
                 if (p.precioAnterior && precioBaseStr) {
-                    const currentP = parseFloat(precioBaseStr.replace(',','.'));
-                    const prevP = parseFloat(p.precioAnterior.replace(',','.'));
-                    if(!isNaN(currentP) && !isNaN(prevP)) {
-                        if(currentP > prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#dc3545; margin-left:4px">thumb_down</span>`;
-                        else if(currentP < prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#28a745; margin-left:4px">thumb_up</span>`;
+                    const currentP = parseFloat(precioBaseStr.replace(',', '.'));
+                    const prevP = parseFloat(p.precioAnterior.replace(',', '.'));
+                    if (!isNaN(currentP) && !isNaN(prevP)) {
+                        if (currentP > prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#dc3545; margin-left:4px">thumb_down</span>`;
+                        else if (currentP < prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#28a745; margin-left:4px">thumb_up</span>`;
                     }
                 }
 
                 const historyIconHtml = `<span class="material-icons-round" style="font-size:16px; color:#007bff; margin-left:4px; cursor:pointer" onclick="event.stopPropagation(); v8_verHistorialPrecios('${p.id}')">show_chart</span>`;
-                
+
                 const ivaOptions = [0, 4, 10, 21];
                 let optionsHtml = "";
                 ivaOptions.forEach(opt => {
@@ -703,12 +784,12 @@ function v8_renderTabla() {
                 });
 
                 const ivaSelectHtml = `<select class="v8-iva-select" onchange="v8_actualizarIVAProducto('${p.id}', this.value)" onclick="event.stopPropagation()">${optionsHtml}</select>`;
-                
+
                 let labelPrecioFinal = "";
                 if (precioBaseStr && ivaVal > 0) {
-                    const baseNum = parseFloat(precioBaseStr.replace(',','.'));
+                    const baseNum = parseFloat(precioBaseStr.replace(',', '.'));
                     if (!isNaN(baseNum)) {
-                        const final = (baseNum * (1 + ivaVal/100)).toFixed(2);
+                        const final = (baseNum * (1 + ivaVal / 100)).toFixed(2);
                         labelPrecioFinal = `<div style="font-size:10px; color:#1976d2; margin-top:2px; font-weight:600">Total: ${final}€</div>`;
                     }
                 }
@@ -736,14 +817,14 @@ function v8_renderTabla() {
                     ${historyIconHtml}
                     ${rowTotalHtml}
                 </div>`;
-                
+
                 row.innerHTML = `
                     <div class="v8-prod-info">
-                        <span class="v8-star ${isFav?'fav':''}" onclick="toggleFav('${p.id}')">★</span>
+                        <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
                         <div class="v8-text-col">
                             <div class="v8-name-row" style="display:flex; align-items:center">
                                 <div class="v8-prod-name">${p.nombre}</div>
-                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g,"")}')">edit</span>
+                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
                                 ${p.esManual ? '' : ivaSelectHtml} 
                             </div>
                             <div style="display:flex; align-items:center; margin-top:4px;">
@@ -761,11 +842,11 @@ function v8_renderTabla() {
                 // SI ES TRABAJADOR
                 row.innerHTML = `
                     <div class="v8-prod-info">
-                        <span class="v8-star ${isFav?'fav':''}" onclick="toggleFav('${p.id}')">★</span>
+                        <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
                         <div class="v8-text-col">
                             <div class="v8-name-row" style="display:flex; align-items:center">
                                 <div class="v8-prod-name">${p.nombre}</div>
-                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g,"")}')">edit</span>
+                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
                             </div>
                             <div style="display:flex; align-items:center; margin-top:4px;">
                                 <span class="v8-prod-unit">${p.unidad || ''}</span>
@@ -785,14 +866,14 @@ function v8_renderTabla() {
     document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
 }
 
-function v8_toggleCat(cid) { const el = document.querySelector(`.cat-group-${cid}`); if(el) el.style.display = (el.style.display === 'none') ? 'block' : 'none'; }
-function v8_toggleFiltro(f) { haptic(); v8_filter = (v8_filter===f)?'todos':f; v8_renderTabla(); }
-function v8_toggleExpansion() { haptic(); v8_expanded=!v8_expanded; v8_renderTabla(); }
+function v8_toggleCat(cid) { const el = document.querySelector(`.cat-group-${cid}`); if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none'; }
+function v8_toggleFiltro(f) { haptic(); v8_filter = (v8_filter === f) ? 'todos' : f; v8_renderTabla(); }
+function v8_toggleExpansion() { haptic(); v8_expanded = !v8_expanded; v8_renderTabla(); }
 
 function v8_calcularSugerenciasBackground() {
     db.collection("pedidos").where("proveedor", "==", currentProv).limit(20).get()
-       .then(snapHist => {
-            if(snapHist.empty) return;
+        .then(snapHist => {
+            if (snapHist.empty) return;
             const sums = {}; const counts = {};
             snapHist.forEach(doc => {
                 const items = doc.data().items || {};
@@ -805,31 +886,31 @@ function v8_calcularSugerenciasBackground() {
                 const avg = sums[pid] / counts[pid];
                 suggestions[pid] = Math.round(avg);
                 if (suggestions[pid] === 0) suggestions[pid] = null;
-                
+
                 const sugSlot = document.getElementById(`sug_${pid}`);
-                if(sugSlot && suggestions[pid] > 0) sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})">${suggestions[pid]}</button>`;
+                if (sugSlot && suggestions[pid] > 0) sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})">${suggestions[pid]}</button>`;
             }
-       }).catch(e => {});
+        }).catch(e => { });
 }
 
 function v8_compartir(metodo) {
     haptic();
-    if(Object.keys(cart).length === 0) return alert("El pedido está vacío.");
+    if (Object.keys(cart).length === 0) return alert("El pedido está vacío.");
     const texto = v8_generarTextoResumen();
-    
+
     if (metodo === 'whatsapp') {
         const storageKey = `rail_contact_wa_${currentProv}`;
         let phone = localStorage.getItem(storageKey);
         if (!phone) {
             phone = prompt(`📱 Introduce el teléfono de ${currentProv} (con prefijo 34):`, "34");
             if (!phone) return;
-            localStorage.setItem(storageKey, phone.replace(/\D/g,''));
+            localStorage.setItem(storageKey, phone.replace(/\D/g, ''));
         }
         const url = `https://wa.me/${phone}?text=${encodeURIComponent(texto)}`;
         window.open(url, '_blank');
-    } 
+    }
     else if (metodo === 'email') {
-        if(currentProv.toLowerCase().includes("reyes") && currentProv.toLowerCase().includes("magos")) {
+        if (currentProv.toLowerCase().includes("reyes") && currentProv.toLowerCase().includes("magos")) {
             const subject = `PEDIDO DE: ${userName.toUpperCase()} - ${currentProv}`;
             const url = `mailto:bodegareyesmagos@hotmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(texto)}`;
             window.location.href = url;
@@ -851,23 +932,23 @@ function v8_compartir(metodo) {
 
 function guardarPedidoFinal() {
     haptic();
-    if(Object.keys(cart).length===0) return alert("Vacío.");
-    
-    let msgConfirm = "¿Enviar pedido y guardarlo en el historial?\n\n(Los productos seguirán marcados hasta que los borres manualmente)";
-    if(!navigator.onLine) msgConfirm += "\n\n⚠️ ESTÁS OFFLINE: El pedido se guardará en tu móvil y se enviará automáticamente cuando recuperes la conexión.";
+    if (Object.keys(cart).length === 0) return alert("Vacío.");
 
-    if(!confirm(msgConfirm)) return;
+    let msgConfirm = "¿Enviar pedido y guardarlo en el historial?\n\n(Los productos seguirán marcados hasta que los borres manualmente)";
+    if (!navigator.onLine) msgConfirm += "\n\n⚠️ ESTÁS OFFLINE: El pedido se guardará en tu móvil y se enviará automáticamente cuando recuperes la conexión.";
+
+    if (!confirm(msgConfirm)) return;
 
     const btn = document.querySelector('.v8-send-btn');
     btn.innerText = "..."; btn.disabled = true;
     const d = new Date().toISOString().split('T')[0];
-    const id = `${d}_${currentProv.replace(/[^a-zA-Z0-9]/g,'')}_${userName.replace(/[^a-zA-Z0-9]/g,'')}`;
-    
+    const id = `${d}_${currentProv.replace(/[^a-zA-Z0-9]/g, '')}_${userName.replace(/[^a-zA-Z0-9]/g, '')}`;
+
     db.collection("pedidos").doc(id).set({
         id_unico: id, usuario: userName, email: currentUser, proveedor: currentProv,
         fecha: new Date(), fecha_corta: d, estado: "enviado", items: cart, notas: cartNotes
-    }, {merge:true}).then(() => {
-        if(!navigator.onLine) alert("📴 Guardado OFFLINE. Se subirá al recuperar conexión.");
+    }, { merge: true }).then(() => {
+        if (!navigator.onLine) alert("📴 Guardado OFFLINE. Se subirá al recuperar conexión.");
         else alert("✅ Guardado en Historial.\nRECUERDA: Borra los productos cuando llegue la mercancía.");
     }).catch(e => { alert("❌ Error: " + e.message); }).finally(() => {
         btn.innerText = "ENVIAR"; btn.disabled = false;
@@ -879,12 +960,12 @@ function v8_generarTextoResumen(pedidoData = null) {
     const notes = pedidoData ? pedidoData.notas : cartNotes;
     const prov = pedidoData ? pedidoData.proveedor : currentProv;
     const user = pedidoData ? pedidoData.usuario : userName;
-    
+
     let dateStr = "";
     if (pedidoData && pedidoData.fecha) {
-        try { dateStr = pedidoData.fecha.toDate().toLocaleDateString("es-ES", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); } catch(e) {}
+        try { dateStr = pedidoData.fecha.toDate().toLocaleDateString("es-ES", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { }
     } else {
-        dateStr = new Date().toLocaleDateString("es-ES", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+        dateStr = new Date().toLocaleDateString("es-ES", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     }
 
     let t = `📝 PEDIDO ${prov}\n`;
@@ -910,13 +991,13 @@ function v8_generarTextoResumen(pedidoData = null) {
             }
         }
     }
-    
-    if(manuales.length > 0) {
+
+    if (manuales.length > 0) {
         t += `--- EXTRAS MANUALES ---\n`;
         manuales.forEach(l => { t += `▪️ ${l.qty} ${l.unidad} - ${l.nombre}${l.nota}\n`; });
         t += `\n`;
     }
-    
+
     lineas.sort((a, b) => a.nombre.localeCompare(b.nombre));
     lineas.forEach(l => { t += `▪️ ${l.qty} ${l.unidad} - ${l.nombre}${l.nota}\n`; });
     t += `--------------------------------`;
@@ -933,69 +1014,69 @@ function v8_historialSimple() {
     document.getElementById("modalHistorialSimple").style.display = "flex";
 
     db.collection("pedidos")
-      .where("proveedor", "==", currentProv)
-      .limit(20)
-      .get()
-      .then(snap => {
-         if (snap.empty) {
-             listContent.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>No hay historial reciente para este proveedor.</div>";
-             return;
-         }
-         
-         let pedidos = [];
-         snap.forEach(doc => pedidos.push(doc.data()));
-         
-         pedidos = pedidos.filter(p => p.estado !== 'borrado');
-         
-         pedidos.sort((a, b) => {
-            let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
-            let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
-            return db - da;
-        });
-        
-         let html = "";
-         window.tempPedidosHistorial = pedidos;
+        .where("proveedor", "==", currentProv)
+        .limit(20)
+        .get()
+        .then(snap => {
+            if (snap.empty) {
+                listContent.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>No hay historial reciente para este proveedor.</div>";
+                return;
+            }
 
-         pedidos.forEach((d, index) => {
-             let fechaStr = "Fecha desconocida";
-             try { 
-                if(d.fecha && d.fecha.toDate) {
-                    fechaStr = d.fecha.toDate().toLocaleDateString("es-ES", {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
-                }
-             } catch(e) {}
-             
-             const itemsCount = d.items ? Object.keys(d.items).length : 0;
-             const esBorrado = d.estado === 'borrado';
-             const styleBorrado = esBorrado ? "opacity:0.6; background:#fff5f5" : "";
+            let pedidos = [];
+            snap.forEach(doc => pedidos.push(doc.data()));
 
-             html += `
+            pedidos = pedidos.filter(p => p.estado !== 'borrado');
+
+            pedidos.sort((a, b) => {
+                let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
+                let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
+                return db - da;
+            });
+
+            let html = "";
+            window.tempPedidosHistorial = pedidos;
+
+            pedidos.forEach((d, index) => {
+                let fechaStr = "Fecha desconocida";
+                try {
+                    if (d.fecha && d.fecha.toDate) {
+                        fechaStr = d.fecha.toDate().toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    }
+                } catch (e) { }
+
+                const itemsCount = d.items ? Object.keys(d.items).length : 0;
+                const esBorrado = d.estado === 'borrado';
+                const styleBorrado = esBorrado ? "opacity:0.6; background:#fff5f5" : "";
+
+                html += `
              <div class="hist-item-simple" style="${styleBorrado}">
                  <div class="hist-item-content" onclick="v8_verDetalleHistorial(${index})">
-                     <div>${fechaStr} ${esBorrado?'(CANCELADO)':''}</div>
+                     <div>${fechaStr} ${esBorrado ? '(CANCELADO)' : ''}</div>
                      <span>👤 ${d.usuario} - ${itemsCount} productos</span>
                  </div>
                  <div class="hist-delete-btn" onclick="event.stopPropagation(); v8_eliminarPedidoHistorial('${d.id_unico}')">
                     <span class="material-icons-round">delete</span>
                  </div>
              </div>`;
-         });
-         
-         listContent.innerHTML = html;
-      })
-      .catch(err => {
-          listContent.innerHTML = `<div style='text-align:center;padding:20px;color:red'>
+            });
+
+            listContent.innerHTML = html;
+        })
+        .catch(err => {
+            listContent.innerHTML = `<div style='text-align:center;padding:20px;color:red'>
               Error cargando historial.<br><small>(${err.message})</small>
           </div>`;
-      });
+        });
 }
 
 function v8_eliminarPedidoHistorial(idPedido, esDashboard = false) {
     haptic();
-    if(!confirm("¿Borrar definitivamente este pedido del historial?\n\n(Desaparecerá de la lista)")) return;
-    
+    if (!confirm("¿Borrar definitivamente este pedido del historial?\n\n(Desaparecerá de la lista)")) return;
+
     db.collection("pedidos").doc(idPedido).delete().then(() => {
-        if(esDashboard) v8_cargarDashboardHistorial(); 
-        else v8_historialSimple(); 
+        if (esDashboard) v8_cargarDashboardHistorial();
+        else v8_historialSimple();
     }).catch(err => {
         alert("Error al borrar: " + err.message);
     });
@@ -1006,24 +1087,24 @@ async function v8_mostrarModalDetalle(pedido) {
 
     document.getElementById("modalHistorialSimple").style.display = "none";
     document.getElementById("modalDetallePedido").style.display = "flex";
-    
+
     let fechaStr = "";
-    try { fechaStr = pedido.fecha.toDate().toLocaleDateString("es-ES", {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); } catch(e){}
-    
+    try { fechaStr = pedido.fecha.toDate().toLocaleDateString("es-ES", { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { }
+
     document.getElementById("detalleTitulo").innerText = `${pedido.proveedor} (${fechaStr})`;
     document.getElementById("detallePedidoContent").innerHTML = "<div style='text-align:center;padding:20px'>Buscando nombres reales...</div>";
 
     let catalogoMap = {};
-    
+
     if (currentProv === pedido.proveedor && allProducts.length > 0) {
         allProducts.forEach(p => catalogoMap[p.id] = p.nombre);
     } else {
         try {
             const snap = await db.collection("proveedores").doc(pedido.proveedor).collection("productos").get();
             snap.forEach(doc => {
-                  catalogoMap[doc.id] = doc.data().nombre;
+                catalogoMap[doc.id] = doc.data().nombre;
             });
-        } catch(e) { console.log("Error cargando catálogo auxiliar", e); }
+        } catch (e) { console.log("Error cargando catálogo auxiliar", e); }
     }
 
     renderDetalleConNombres(pedido, catalogoMap);
@@ -1032,33 +1113,33 @@ async function v8_mostrarModalDetalle(pedido) {
 function renderDetalleConNombres(pedido, catalogoMap) {
     let itemsHtml = `<div style="padding:5px; color:#555; font-family:'Inter',sans-serif">`;
     itemsHtml += `<div style="margin-bottom:10px; font-weight:700; color:#333; font-size:15px">👤 ${pedido.usuario}</div>`;
-    
+
     const items = pedido.items || {};
     const notes = pedido.notas || {};
     const lineas = [];
-    
+
     for (const [pid, qty] of Object.entries(items)) {
         if (qty > 0) {
-            let nombre = catalogoMap[pid] || pid; 
+            let nombre = catalogoMap[pid] || pid;
             let unidad = "";
             let nota = notes[pid] || "";
-            
+
             if (pid.startsWith("manual_")) {
                 const parts = pid.split('_');
                 nombre = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') : "Extra Manual";
                 unidad = "ud";
             }
-            
+
             lineas.push({ nombre, qty, unidad, nota });
         }
     }
-    
+
     lineas.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    
+
     lineas.forEach(l => {
         let noteBlock = "";
-        if(l.nota) noteBlock = `<div style="margin-top:2px; font-size:12px; color:#007bff; font-weight:600">📝 ${l.nota}</div>`;
-        
+        if (l.nota) noteBlock = `<div style="margin-top:2px; font-size:12px; color:#007bff; font-weight:600">📝 ${l.nota}</div>`;
+
         itemsHtml += `
         <div style="padding:8px 0; border-bottom:1px solid #eee; font-size:14px">
             <div style="display:flex; justify-content:space-between">
@@ -1068,9 +1149,9 @@ function renderDetalleConNombres(pedido, catalogoMap) {
             ${noteBlock}
         </div>`;
     });
-    
+
     itemsHtml += `</div>`;
-    document.getElementById("detallePedidoContent").innerHTML = itemsHtml; 
+    document.getElementById("detallePedidoContent").innerHTML = itemsHtml;
 }
 
 function v8_verDetalleHistorial(index) {
@@ -1093,7 +1174,7 @@ function v8_cargarPedidoHistorial() {
     if (!currentHistoryPedido) return;
     const provSelect = document.getElementById("v8-proveedor");
     provSelect.value = currentHistoryPedido.proveedor;
-    
+
     if (provSelect.value !== currentHistoryPedido.proveedor) {
         alert("⚠️ No tienes acceso a este proveedor o no existe en tu lista.");
         return;
@@ -1101,18 +1182,18 @@ function v8_cargarPedidoHistorial() {
 
     if (!confirm("⚠️ ¿Quieres CARGAR estos productos en tu lista actual?\n\nSe sobreescribirá lo que tengas ahora mismo en el borrador.")) return;
 
-    v8_cambiarProveedor(); 
+    v8_cambiarProveedor();
 
     setTimeout(() => {
         cart = { ...currentHistoryPedido.items };
         cartNotes = { ...currentHistoryPedido.notas };
-        
+
         v8_renderTabla();
         v8_escribirEnBorrador();
-        
+
         document.getElementById("modalDetallePedido").style.display = "none";
         alert("✅ Pedido cargado correctamente.");
-    }, 500); 
+    }, 500);
 }
 
 // --- MODO LECTOR (VISUAL) ---
@@ -1128,10 +1209,10 @@ function v9_toggleSortMode() {
     const btn = document.getElementById('v9-sort-icon');
     if (v9_sortMode === 'alpha') {
         v9_sortMode = 'category';
-        btn.innerText = 'category'; 
+        btn.innerText = 'category';
     } else {
         v9_sortMode = 'alpha';
-        btn.innerText = 'sort_by_alpha'; 
+        btn.innerText = 'sort_by_alpha';
     }
     v9_renderListaLector();
 }
@@ -1139,9 +1220,11 @@ function v9_toggleSortMode() {
 async function v9_cargarProveedoresResumen() {
     const cont = document.getElementById("v9-prov-list");
     cont.innerHTML = "<div style='text-align:center;padding:20px'>Buscando pedidos ACTIVOS...</div>";
+
     try {
         const snap = await db.collection("borradores").get();
         const provs = [];
+
         snap.forEach(doc => {
             const d = doc.data();
             if (PROVEEDORES_LECTOR.includes(doc.id) && d.items) {
@@ -1149,13 +1232,18 @@ async function v9_cargarProveedoresResumen() {
                 if (hasRealQty) provs.push(doc.id);
             }
         });
+
         cont.innerHTML = "";
         const sorted = provs.sort();
-        if (sorted.length === 0) { cont.innerHTML="<div style='text-align:center;padding:20px;color:#999'>No hay listas activas para ti.</div>"; return; }
+
+        if (sorted.length === 0) {
+            cont.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>No hay listas activas para ti.</div>";
+            return;
+        }
+
         sorted.forEach(p => {
             const div = document.createElement("div");
             div.className = "v9-card";
-            
             let btnDel = `<div onclick="event.stopPropagation(); v9_borrarBorradorDirecto('${p}')" style="background:#ffebee; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#d32f2f; cursor:pointer"><span class="material-icons-round" style="font-size:20px">delete</span></div>`;
 
             div.innerHTML = `
@@ -1165,36 +1253,39 @@ async function v9_cargarProveedoresResumen() {
                    <span class="material-icons-round" style="color:#ccc">chevron_right</span>
                </div>
             `;
-            div.onclick = function() { v9_abrirProveedorResumen(p); };
+            div.onclick = function () { v9_abrirProveedorResumen(p); };
             cont.appendChild(div);
         });
-    } catch(e) { cont.innerHTML="Error: "+e.message; }
+
+    } catch (e) {
+        cont.innerHTML = "Error: " + e.message;
+    }
 }
 
 function v9_borrarBorradorDirecto(provName) {
     haptic();
-    if(!confirm(`⚠️ ¿Borrar la lista de ${provName}?\n(Desaparecerá para todos)`)) return;
-    
+    if (!confirm(`⚠️ ¿Borrar la lista de ${provName}?\n(Desaparecerá para todos)`)) return;
+
     db.collection("borradores").doc(provName).delete()
         .then(() => {
             v9_cargarProveedoresResumen();
         })
         .catch(e => {
             console.log("Error borrando:", e);
-            v9_cargarProveedoresResumen(); 
+            v9_cargarProveedoresResumen();
         });
 }
 
 function v9_cargarHistorialDashboard() {
     const dashList = document.getElementById("v9-dash-list");
     dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando historial...</div>";
-    
+
     db.collection("pedidos").limit(50).get().then(snap => {
         if (snap.empty) {
             dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente.</div>";
             return;
         }
-        
+
         let pedidos = [];
         snap.forEach(doc => pedidos.push(doc.data()));
         pedidos.sort((a, b) => {
@@ -1202,21 +1293,21 @@ function v9_cargarHistorialDashboard() {
             let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
             return db - da;
         });
-        
+
         pedidos = pedidos.filter(p => PROVEEDORES_LECTOR.includes(p.proveedor));
         pedidos = pedidos.slice(0, 10);
-        
+
         if (pedidos.length === 0) {
-             dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente (para ti).</div>";
-             return;
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente (para ti).</div>";
+            return;
         }
 
         let html = "";
         pedidos.forEach(d => {
             const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
-            const fechaStr = f.toLocaleDateString("es-ES", {day:'2-digit', month:'2-digit'});
-            const horaStr = f.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
+            const fechaStr = f.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' });
+            const horaStr = f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
             const esBorrado = d.estado === "borrado";
             const colorBorde = esBorrado ? "#dc3545" : "#007bff";
             const colorTexto = esBorrado ? "#dc3545" : "#007bff";
@@ -1248,35 +1339,34 @@ async function v9_abrirProveedorResumen(provName) {
     document.getElementById("v9-view-prods").classList.remove("hidden");
     document.getElementById("v9-prov-title").innerText = provName;
     document.getElementById("v9-prod-list").innerHTML = "<div style='padding:20px;text-align:center'>Cargando detalle...</div>";
-    v9_checkedIds.clear(); 
+    v9_checkedIds.clear();
 
     try {
         const doc = await db.collection("borradores").doc(provName).get();
-        if(!doc.exists) { document.getElementById("v9-prod-list").innerHTML = "Borrador vacío."; return; }
-        
-        v9_currentData = doc.data(); 
+        if (!doc.exists) { document.getElementById("v9-prod-list").innerHTML = "Borrador vacío."; return; }
+
+        v9_currentData = doc.data();
         v9_currentData.catalogoNombres = {};
-        v9_currentData.catalogoCategorias = {}; 
-        v9_currentData.catalogoPrecios = {}; 
-        v9_currentData.catalogoPesos = {}; 
-        
-        v9_currentData.catalogoIvas = {}; 
+        v9_currentData.catalogoCategorias = {};
+        v9_currentData.catalogoPrecios = {};
+        v9_currentData.catalogoPesos = {};
+        v9_currentData.catalogoIvas = {};
 
         try {
             const snapCat = await db.collection("proveedores").doc(provName).collection("productos").get();
-            snapCat.forEach(d => { 
+            snapCat.forEach(d => {
                 const data = d.data();
-                v9_currentData.catalogoNombres[d.id] = data.nombre; 
+                v9_currentData.catalogoNombres[d.id] = data.nombre;
                 v9_currentData.catalogoCategorias[d.id] = data.categoria || "General";
-                v9_currentData.catalogoPrecios[d.id] = data.precio || ""; 
-                v9_currentData.catalogoPesos[d.id] = data.peso || "1"; 
-                v9_currentData.catalogoIvas[d.id] = data.iva || 0; 
+                v9_currentData.catalogoPrecios[d.id] = data.precio || "";
+                v9_currentData.catalogoPesos[d.id] = data.peso || "1";
+                v9_currentData.catalogoIvas[d.id] = data.iva || 0;
             });
-        } catch(e) {}
-        
+        } catch (e) { }
+
         v9_renderListaLector();
 
-    } catch(e) { document.getElementById("v9-prod-list").innerHTML = "Error: " + e.message; }
+    } catch (e) { document.getElementById("v9-prod-list").innerHTML = "Error: " + e.message; }
 }
 
 function v9_renderListaLector() {
@@ -1284,47 +1374,39 @@ function v9_renderListaLector() {
     const notas = v9_currentData.notas || {};
     const catalogo = v9_currentData.catalogoNombres || {};
     const categorias = v9_currentData.catalogoCategorias || {};
-    const precios = v9_currentData.catalogoPrecios || {}; 
-    const pesos = v9_currentData.catalogoPesos || {}; 
-    const ivas = v9_currentData.catalogoIvas || {}; 
-    
-    let totalLector = 0;
-    for(let k in items) {
-        if(items[k] > 0 && precios[k]) {
-            const pBase = parseFloat(precios[k].replace(',','.'));
-            const ivaVal = parseFloat(ivas[k]) || 0;
-            
-            // CALCULO v94: Base + IVA
-            const pConIva = pBase * (1 + ivaVal/100);
+    const precios = v9_currentData.catalogoPrecios || {};
+    const pesos = v9_currentData.catalogoPesos || {};
+    const ivas = v9_currentData.catalogoIvas || {};
 
+    let totalLector = 0;
+    for (let k in items) {
+        if (items[k] > 0 && precios[k]) {
+            const pBase = parseFloat(precios[k].replace(',', '.'));
+            const ivaVal = parseFloat(ivas[k]) || 0;
+            const pConIva = pBase * (1 + ivaVal / 100);
             const pPeso = (pesos[k] && parseFloat(pesos[k]) > 0) ? parseFloat(pesos[k]) : parseFloat(items[k]);
-            
-            if(!isNaN(pBase)) totalLector += pConIva * pPeso;
+            if (!isNaN(pBase)) totalLector += pConIva * pPeso;
         }
     }
-    
+
     const tituloDiv = document.getElementById("v9-prov-title");
-    if(!tituloDiv.innerHTML.includes("Est:")) {
-         tituloDiv.innerHTML = `${currentLectorProv} <div style="font-size:13px; color:#28a745; margin-top:-2px; font-weight:600">Est: ${totalLector.toFixed(2)}€</div>`;
-    } else {
-         tituloDiv.innerHTML = `${currentLectorProv} <div style="font-size:13px; color:#28a745; margin-top:-2px; font-weight:600">Est: ${totalLector.toFixed(2)}€</div>`;
-    }
+    tituloDiv.innerHTML = `${currentLectorProv} <div style="font-size:13px; color:#28a745; margin-top:-2px; font-weight:600">Est: ${totalLector.toFixed(2)}€</div>`;
 
     let lista = [];
-    
-    for(let k in items) {
-        if(items[k] > 0) {
+
+    for (let k in items) {
+        if (items[k] > 0) {
             let nombreReal = catalogo[k];
             let categoriaReal = categorias[k] || "General";
             let precioReal = v9_currentData.catalogoPrecios ? v9_currentData.catalogoPrecios[k] : "";
 
             if (!nombreReal) {
-                if (k.startsWith("manual_")) { const parts = k.split('_'); nombreReal = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') + " (M)" : "Manual"; categoriaReal="Manual"; } 
+                if (k.startsWith("manual_")) { const parts = k.split('_'); nombreReal = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') + " (M)" : "Manual"; categoriaReal = "Manual"; }
                 else { const parts = k.split('_'); nombreReal = parts.length > 2 ? parts.slice(2).join(' ').replace(/_/g, ' ') : k; }
             }
             const tieneNota = notas[k] ? true : false;
             const textoNota = notas[k] || "";
-            
+
             lista.push({
                 id: k,
                 nombre: nombreReal,
@@ -1337,19 +1419,19 @@ function v9_renderListaLector() {
             });
         }
     }
-    
+
     lista.sort((a, b) => {
         if (a.checked !== b.checked) return a.checked ? 1 : -1;
         if (v9_sortMode === 'category') {
-             const catCompare = a.categoria.localeCompare(b.categoria);
-             if (catCompare !== 0) return catCompare;
+            const catCompare = a.categoria.localeCompare(b.categoria);
+            if (catCompare !== 0) return catCompare;
         }
         return a.nombre.localeCompare(b.nombre);
     });
-    
+
     let html = "";
-    if(lista.length === 0) html = "<div style='text-align:center;padding:20px;color:#999'>Lista vacía.</div>";
-    
+    if (lista.length === 0) html = "<div style='text-align:center;padding:20px;color:#999'>Lista vacía.</div>";
+
     let lastCat = "";
 
     lista.forEach(item => {
@@ -1360,8 +1442,8 @@ function v9_renderListaLector() {
 
         const checkedClass = item.checked ? "checked" : "";
         const activeClass = item.checked ? "active" : "";
-        const checkIcon = item.checked ? "remove_shopping_cart" : "check"; 
-        
+        const checkIcon = item.checked ? "remove_shopping_cart" : "check";
+
         let noteHtml = "";
         if (item.tieneNota) {
             noteHtml = `<div class="v9-alert-note" onclick="alert('NOTA: ${item.textoNota.replace(/'/g, "")}')">⚠️ LEER NOTA</div>`;
@@ -1369,14 +1451,12 @@ function v9_renderListaLector() {
 
         const precioVal = item.precio || "";
         const ivaVal = parseFloat(ivas[item.id]) || 0;
-
         let finalPriceHtml = "";
-        const precNum = parseFloat(precioVal.replace(',','.'));
-        
-        // Calculo SOLO VISUAL: Base * (1 + IVA)
-        if(!isNaN(precNum) && precNum > 0) {
-             const pFinal = (precNum * (1 + ivaVal/100)).toFixed(2);
-             finalPriceHtml = `<div class="v9-prod-price-final">${pFinal}€</div>`;
+        const precNum = parseFloat(precioVal.replace(',', '.'));
+
+        if (!isNaN(precNum) && precNum > 0) {
+            const pFinal = (precNum * (1 + ivaVal / 100)).toFixed(2);
+            finalPriceHtml = `<div class="v9-prod-price-final">${pFinal}€</div>`;
         }
 
         html += `
@@ -1398,7 +1478,7 @@ function v9_renderListaLector() {
             </div>
         </div>`;
     });
-    
+
     document.getElementById("v9-prod-list").innerHTML = html;
 }
 
@@ -1411,14 +1491,14 @@ function v9_toggleCheck(id) {
 
 async function v9_borrarPedidoActual() {
     haptic();
-    if(!currentLectorProv) return;
-    if(!confirm(`⚠️ ¿CONFIRMAS QUE HA LLEGADO LA MERCANCÍA?\n\nEsto borrará la lista de ${currentLectorProv} para todos.`)) return;
+    if (!currentLectorProv) return;
+    if (!confirm(`⚠️ ¿CONFIRMAS QUE HA LLEGADO LA MERCANCÍA?\n\nEsto borrará la lista de ${currentLectorProv} para todos.`)) return;
     try {
         await db.collection("borradores").doc(currentLectorProv).delete();
         v9_volverInicio();
         v9_cargarProveedoresResumen();
-        v9_cargarHistorialDashboard(); 
-    } catch(e) { alert("Error: " + e.message); }
+        v9_cargarHistorialDashboard();
+    } catch (e) { alert("Error: " + e.message); }
 }
 
 function v9_volverInicio() {
@@ -1427,13 +1507,93 @@ function v9_volverInicio() {
 }
 
 /* =========================================================
-   EXPOSICIÓN GLOBAL PARA HTML
-   (Necesario porque 'type=module' aísla el scope)
+   GESTIÓN DE USUARIOS (PLANTILLA)
+   ========================================================= */
+
+async function abrirGestorUsuarios() {
+    haptic();
+    document.getElementById("modalUsuarios").style.display = "flex";
+    cargarTablaUsuarios();
+}
+
+function cargarTablaUsuarios() {
+    const tbody = document.getElementById("lista-usuarios-body");
+    tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:20px'>Cargando equipo...</td></tr>";
+
+    db.collection("usuarios").get().then(snap => {
+        let html = "";
+        if (snap.empty) {
+            html = "<tr><td colspan='5' style='text-align:center; padding:20px'>No hay usuarios registrados. Añade uno arriba.</td></tr>";
+        } else {
+            snap.forEach(doc => {
+                const u = doc.data();
+                const esAdmin = u.rol === 'admin';
+                const colorRol = esAdmin ? '#dc3545' : '#28a745';
+                const textoRol = esAdmin ? 'ADMIN' : 'Worker';
+                
+                html += `
+                <tr style="border-bottom:1px solid #eee">
+                    <td style="padding:10px; font-weight:bold">${u.nombre}</td>
+                    <td style="padding:10px; color:#666; font-size:13px">${u.email}</td>
+                    <td style="padding:10px">${u.grupo || '-'}</td>
+                    <td style="padding:10px"><span style="background:${colorRol}; color:white; padding:2px 6px; border-radius:4px; font-size:11px">${textoRol}</span></td>
+                    <td style="padding:10px; text-align:right">
+                        <button onclick="borrarUsuario('${u.email}')" style="background:none; border:none; cursor:pointer; color:#dc3545">
+                            <span class="material-icons-round">delete</span>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+        }
+        tbody.innerHTML = html;
+    });
+}
+
+async function crearUsuario() {
+    haptic();
+    const email = document.getElementById("newUserEmail").value.trim().toLowerCase();
+    const nombre = document.getElementById("newUserName").value.trim();
+    const rol = document.getElementById("newUserRole").value;
+    const grupo = document.getElementById("newUserGroup").value.trim();
+
+    if (!email || !nombre) return alert("Email y Nombre son obligatorios");
+
+    try {
+        await db.collection("usuarios").doc(email).set({
+            email: email,
+            nombre: nombre,
+            rol: rol,
+            grupo: grupo,
+            creado: new Date()
+        });
+        
+        // Limpiar campos
+        document.getElementById("newUserEmail").value = "";
+        document.getElementById("newUserName").value = "";
+        document.getElementById("newUserGroup").value = "";
+        
+        cargarTablaUsuarios();
+        alert("✅ Usuario añadido correctamente");
+        
+    } catch (e) {
+        alert("Error al guardar: " + e.message);
+    }
+}
+
+async function borrarUsuario(email) {
+    if(!confirm("¿Seguro que quieres eliminar acceso a " + email + "?")) return;
+    try {
+        await db.collection("usuarios").doc(email).delete();
+        cargarTablaUsuarios();
+    } catch(e) { alert("Error: " + e.message); }
+}
+
+/* =========================================================
+   EXPOSICIÓN GLOBAL
    ========================================================= */
 
 window.cerrarSesion = cerrarSesion;
 window.v8_cambiarProveedor = v8_cambiarProveedor;
-window.toggleProveedorLector = toggleProveedorLector;
 window.v8_filtrarProductos = v8_filtrarProductos;
 window.v8_toggleFiltro = v8_toggleFiltro;
 window.v8_toggleExpansion = v8_toggleExpansion;
@@ -1461,3 +1621,8 @@ window.v8_verDetalleHistorial = v8_verDetalleHistorial;
 window.v9_borrarBorradorDirecto = v9_borrarBorradorDirecto;
 window.v9_abrirProveedorResumen = v9_abrirProveedorResumen;
 window.v9_toggleCheck = v9_toggleCheck;
+window.irAModoLector = irAModoLector;
+window.salirDeModoLector = salirDeModoLector;
+window.abrirGestorUsuarios = abrirGestorUsuarios;
+window.crearUsuario = crearUsuario;
+window.borrarUsuario = borrarUsuario;

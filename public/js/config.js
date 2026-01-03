@@ -1,6 +1,6 @@
-// public/js/config.js
+/* public/js/config.js */
 
-// Configuración de Firebase
+// 1. Configuración de Firebase
 export const firebaseConfig = {
     apiKey: "AIzaSyATkItPtDhyjv9hkL54Q1JZauK5DfqdKh4",
     authDomain: "pedidos-rail-app-2025-87f2c.firebaseapp.com",
@@ -10,20 +10,20 @@ export const firebaseConfig = {
     appId: "1:31822553366:web:9fa1be91c895a8fdf8b037"
 };
 
-// CONSTANTES (Exportadas individualmente para que main.js las encuentre)
-export const ADMIN_EMAILS = ["quiebrakanto@gmail.com"];
+// 2. Constantes de Seguridad
+export const ADMIN_EMAILS = ["quiebrakanto@gmail.com", "ebolanca@hotmail.com"]; 
 
-export const LECTOR_EMAILS = ["ebolanca@hotmail.com"];
-
-export const PROVEEDORES_LECTOR = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
-
+// 3. Mapa de Usuarios
 export const MAPA_USUARIOS = {
     "quiebrakanto@gmail.com": "Roberto",      
     "ebolanca@hotmail.com": "Roberto",        
-    "jasmiinrivas802@gmail.com": "Cristina",
+    "jasmiinrivas802@gmail.com": "Jazmín",
+    "aaronmg995@gmail.com": "Aarón", 
     "flor101318@gmail.com": "Flor",
-    "aaronmg995@gmail.com": "Jazmín y Aarón",    
     "jhoansanch3z@gmail.com": "Jhoan",
     "ami.habtany15@gmail.com": "Amina",
     "josemartin7s.f@gmail.com": "Jose",
 };
+
+// 4. Proveedores
+export const PROVEEDORES_LECTOR = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
