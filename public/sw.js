@@ -1,5 +1,6 @@
-/* public/sw.js - v11.1 */
-const CACHE_NAME = 'rail-app-cache-v96';
+/* public/sw.js */
+// CAMBIA ESTE NOMBRE PARA FORZAR LA ACTUALIZACIÓN EN LOS MÓVILES
+const CACHE_NAME = 'rail-app-cache-v10.3';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -11,7 +12,7 @@ const ASSETS_TO_CACHE = [
   'https://fonts.googleapis.com/icon?family=Material+Icons+Round'
 ];
 
-// Instalación y forzado de activación inmediata
+// 1. Instalación: Forzamos la espera (skipWaiting) para que la nueva versión se active ya
 self.addEventListener('install', (e) => {
   self.skipWaiting(); 
   e.waitUntil(
@@ -19,20 +20,26 @@ self.addEventListener('install', (e) => {
   );
 });
 
-// Limpieza de versiones antiguas
+// 2. Activación: Borramos cualquier caché antigua que no coincida con la versión actual
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== CACHE_NAME) return caches.delete(key);
+        if (key !== CACHE_NAME) {
+          console.log('[SW] Borrando caché antigua:', key);
+          return caches.delete(key);
+        }
       }));
     }).then(() => self.clients.claim())
   );
 });
 
-// Estrategia: Intentar red primero, si falla usar caché (Network First)
+// 3. Estrategia: Network First (Red primero, si falla usa caché)
+// Esto asegura que siempre intenten ver la última versión si tienen internet.
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(e.request)
+      .then(res => res)
+      .catch(() => caches.match(e.request))
   );
 });

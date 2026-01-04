@@ -1,0 +1,21 @@
+{
+  "short_name": "PedidosRail",
+  "name": "Pedidos Rail App",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192.png?text=Icon",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://via.placeholder.com/512.png?text=Icon",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/index.html",
+  "background_color": "#212529",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#212529"
+}

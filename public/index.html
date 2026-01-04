@@ -1,188 +1,221 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pedidos Rail v96 (Modular)</title>
-  <meta name="theme-color" content="#212529">
-   
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pedidos Rail App</title>
+    <meta name="theme-color" content="#212529">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 
 <body>
-  <div id="debug-bar">Cargando v96...</div>
-  <div id="offline-banner">⚠️ SIN CONEXIÓN (Modo Offline)</div>
-  <div id="loading-screen"><div class="spinner"></div><div>Cargando...</div></div>
+    <div id="debug-bar">Iniciando App...</div>
+    <div id="offline-banner">⚠️ SIN CONEXIÓN (Modo Offline)</div>
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div>Cargando...</div>
+    </div>
 
-  <div id="app-mode-gestion" class="hidden">
-      <div class="v8-header-user">
-          <div>
-              <div class="v8-user-info" id="v8-userDisplay">...</div>
-              <div class="v8-user-role" id="v8-roleDisplay">...</div>
-          </div>
-          <button class="btn-logout-pill" onclick="cerrarSesion()">
-              <span class="material-icons-round" style="font-size:16px">logout</span> SALIR
-          </button>
-      </div>
+    <div id="app-mode-gestion" class="hidden">
+        <div class="v8-header-user">
+            <div>
+                <div class="v8-user-info" id="v8-userDisplay">...</div>
+                <div class="v8-user-role" id="v8-roleDisplay">...</div>
+            </div>
 
-      <div class="v8-prov-control">
-          <select id="v8-proveedor" class="v8-select" onchange="v8_cambiarProveedor()">
-              <option value="">-- Selecciona Proveedor --</option>
-          </select>
-          <div id="v8-admin-lector-toggle" class="v8-admin-toggle hidden" onclick="toggleProveedorLector()">
-              <span class="material-icons-round" style="font-size:16px">visibility</span>
-              <span>Lector</span>
-          </div>
-      </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button id="v8-admin-lector-toggle" class="btn-logout-pill hidden" onclick="v8_entrarModoLector()">
+                    <span class="material-icons-round" style="font-size:16px">swap_horiz</span> LECTOR
+                </button>
 
-      <div id="v8-dashboard-panel" class="v50-dashboard">
-          <div class="v50-dash-title">Últimos Pedidos</div>
-          <div id="v8-dash-list"><div style="text-align:center; padding:20px; color:#999">Cargando actividad...</div></div>
-      </div>
+                <button class="btn-logout-pill" onclick="cerrarSesion()">
+                    <span class="material-icons-round" style="font-size:16px">logout</span> SALIR
+                </button>
+            </div>
+        </div>
 
-      <div id="v8-product-area" class="hidden">
-          <div class="v8-search-box" id="v8-search-container">
-              <span class="material-icons-round" style="color:#aaa">search</span>
-              <input type="text" id="v8-search-input" class="v8-search-input" placeholder="Buscar producto..." oninput="v8_filtrarProductos()">
-          </div>
+        <div class="v8-prov-control">
+            <select id="v8-proveedor" class="v8-select" onchange="v8_cambiarProveedor()">
+                <option value="">-- Selecciona Proveedor --</option>
+            </select>
+        </div>
 
-          <div class="v8-filtros-container">
-              <button class="v8-btn-filtro" id="v8-btnPedido" onclick="v8_toggleFiltro('pedido')">🛒 Pedido</button>
-              <button class="v8-btn-filtro" id="v8-btnFav" onclick="v8_toggleFiltro('favoritos')">⭐ Favs</button>
-              <button class="v8-btn-filtro" id="v8-btnExp" onclick="v8_toggleExpansion()">↕️ Exp</button>
-          </div>
+        <div id="v8-dashboard-panel" class="v50-dashboard">
+            <div class="v50-dash-title">Últimos Pedidos</div>
+            <div id="v8-dash-list">
+                <div style="text-align:center; padding:20px; color:#999">Cargando actividad...</div>
+            </div>
+        </div>
 
-          <div class="v8-tabla-wrapper" id="v8-tabla-wrapper"></div>
-      </div>
+        <div id="v8-product-area" class="hidden">
+            <div class="v8-search-box" id="v8-search-container">
+                <span class="material-icons-round" style="color:#aaa">search</span>
+                <input type="text" id="v8-search-input" class="v8-search-input" placeholder="Buscar producto..."
+                    oninput="v8_filtrarProductos()">
+            </div>
 
-      <div class="v8-bottom-zone hidden" id="v8-bottom-bar">
-          <div class="v8-tools-row">
-              <button class="v8-btn-narrow v8-btn-danger" onclick="v8_borrarBorrador()">
-                  <span class="material-icons-round">delete</span> BORRAR
-              </button>
-              
-              <button class="v8-fab-center" onclick="v8_anadirManual()">
-                  <span class="material-icons-round">add</span>
-              </button>
+            <div class="v8-filtros-container">
+                <button class="v8-btn-filtro" id="v8-btnPedido" onclick="v8_toggleFiltro('pedido')">🛒 Pedido</button>
+                <button class="v8-btn-filtro" id="v8-btnFav" onclick="v8_toggleFiltro('favoritos')">⭐ Favs</button>
+                <button class="v8-btn-filtro" id="v8-btnExp" onclick="v8_toggleExpansion()">↕️ Exp</button>
+            </div>
 
-              <button class="v8-btn-narrow v8-btn-history" onclick="v8_historialSimple()">
-                  <span class="material-icons-round">history</span> HISTORIAL
-              </button>
-          </div>
-          
-          <div class="v8-action-bar">
-              <div class="v8-counter-block">
-                  Items: <span class="v8-total-num" id="v8-totalCount">0</span>
-                  <div style="font-size:10px; color:#aaa" id="v8-hidden-count"></div>
-              </div>
+            <div class="v8-tabla-wrapper" id="v8-tabla-wrapper"></div>
+        </div>
 
-              <div class="v8-right-actions">
-                  <button class="v8-btn-contact whatsapp" onclick="v8_compartir('whatsapp')">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24m4.52 10.2c-.19-.09-1.1-.54-1.27-.61-.17-.05-.29-.09-.4.09s-.42.54-.51.65-.19.13-.37.05a4.767 4.767 0 0 1-2.37-1.47 5.26 5.26 0 0 1-1.64-2.03c-.17-.29-.03-.44.07-.53.08-.09.19-.22.28-.33.09-.11.12-.19.18-.31.06-.12.03-.23-.01-.32-.05-.09-.41-.98-.56-1.35-.14-.36-.3-.32-.4-.32h-.35c-.12 0-.32.05-.49.23-.17.19-.64.63-.64 1.53 0 .91.66 1.78.75 1.91.09.13 1.29 1.97 3.13 2.76 1.84.79 1.84.53 2.17.49.33-.04 1.09-.45 1.25-.88.15-.43.15-.81.11-.88-.05-.07-.17-.11-.36-.2z"/></svg>
-                  </button>
-                  <button class="v8-btn-contact email" onclick="v8_compartir('email')">
-                    <span class="material-icons-round" style="font-size:20px; color:white">email</span>
-                  </button>
-                  <button class="v8-send-btn" onclick="guardarPedidoFinal()">ENVIAR</button>
-              </div>
-          </div>
-      </div>
-  </div>
+        <div class="v8-bottom-zone hidden" id="v8-bottom-bar">
+            <div class="v8-tools-row">
+                <button class="v8-btn-narrow v8-btn-danger" onclick="v8_borrarBorrador()">
+                    <span class="material-icons-round">delete</span> BORRAR
+                </button>
 
-  <div id="app-mode-visual" class="hidden">
-      <div id="v9-view-provs" class="v9-view">
-          <div class="v9-app-bar">
-              <div class="v9-title">PEDIDOS</div>
-              <button class="btn-logout-pill" onclick="cerrarSesion()">
-                  <span class="material-icons-round" style="font-size:16px">logout</span> SALIR
-              </button>
-          </div>
-          <div class="v9-list-container" id="v9-prov-list"></div>
-          
-          <div style="padding: 10px 15px; font-weight:700; color:#888; text-transform:uppercase; font-size:13px; margin-top:10px">Historial Reciente</div>
-          <div class="v9-list-container" id="v9-dash-list" style="padding-top:0"></div>
-      </div>
+                <button class="v8-fab-center" onclick="v8_anadirManual()">
+                    <span class="material-icons-round">add</span>
+                </button>
 
-      <div id="v9-view-prods" class="v9-view hidden">
-          <div class="v9-app-bar">
-              <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
-                  <div class="v9-back-btn-container" onclick="v9_volverInicio()">
-                      <span class="material-icons-round">arrow_back</span>
-                      <span style="margin-left:6px">VOLVER</span>
-                  </div>
-                  <div class="v9-title" id="v9-prov-title">...</div>
-              </div>
-              <div style="display:flex; gap:10px; align-items:center;">
-                  <button style="border:none; background:none; color:#1967d2" onclick="v9_toggleSortMode()">
-                      <span class="material-icons-round" id="v9-sort-icon">sort_by_alpha</span>
-                  </button>
-                  <button style="border:none; background:none; color:#d32f2f" onclick="v9_borrarPedidoActual()"><span class="material-icons-round">delete_forever</span></button>
-              </div>
-          </div>
-          <div id="v9-chips-container" style="padding:10px 15px; display:flex; gap:5px; overflow-x:auto;"></div>
-          <div class="v9-list-container" id="v9-prod-list"></div>
-      </div>
-  </div>
+                <button class="v8-btn-narrow v8-btn-history" onclick="v8_historialSimple()">
+                    <span class="material-icons-round">history</span> HISTORIAL
+                </button>
+            </div>
 
-  <div id="modalHistorialSimple" class="modal-overlay">
-      <div class="modal-content-simple">
-          <div class="modal-header-simple">
-              <span>Historial <span id="historialProvName">...</span></span>
-              <span class="material-icons-round modal-close-icon" onclick="document.getElementById('modalHistorialSimple').style.display='none'">close</span>
-          </div>
-          <div id="historialListContent"></div>
-          <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Solo se muestran pedidos enviados (no borrados).</div>
-      </div>
-  </div>
+            <div class="v8-action-bar">
+                <div class="v8-counter-block">
+                    Items: <span class="v8-total-num" id="v8-totalCount">0</span>
+                    <div style="font-size:10px; color:#aaa" id="v8-hidden-count"></div>
+                </div>
 
-  <div id="modalDetallePedido" class="modal-overlay">
-      <div class="modal-content-simple">
-          <div class="modal-header-simple">
-              <span id="detalleTitulo">Detalle Pedido</span>
-              <span class="material-icons-round modal-close-icon" onclick="document.getElementById('modalDetallePedido').style.display='none'">close</span>
-          </div>
-          <div id="detallePedidoContent"></div>
-          <div class="detail-actions">
-              <button class="btn-copy" onclick="v8_copiarTextoHistorial()">
-                  <span class="material-icons-round">content_copy</span> COPIAR
-              </button>
-              <button class="btn-reload" onclick="v8_cargarPedidoHistorial()">
-                  <span class="material-icons-round">restore_page</span> CARGAR
-              </button>
-          </div>
-      </div>
-  </div>
+                <div class="v8-right-actions">
+                    <button class="v8-btn-contact whatsapp" onclick="v8_compartir('whatsapp')">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                            <path
+                                d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24m4.52 10.2c-.19-.09-1.1-.54-1.27-.61-.17-.05-.29-.09-.4.09s-.42.54-.51.65-.19.13-.37.05a4.767 4.767 0 0 1-2.37-1.47 5.26 5.26 0 0 1-1.64-2.03c-.17-.29-.03-.44.07-.53.08-.09.19-.22.28-.33.09-.11.12-.19.18-.31.06-.12.03-.23-.01-.32-.05-.09-.41-.98-.56-1.35-.14-.36-.3-.32-.4-.32h-.35c-.12 0-.32.05-.49.23-.17.19-.64.63-.64 1.53 0 .91.66 1.78.75 1.91.09.13 1.29 1.97 3.13 2.76 1.84.79 1.84.53 2.17.49.33-.04 1.09-.45 1.25-.88.15-.43.15-.81.11-.88-.05-.07-.17-.11-.36-.2z" />
+                        </svg>
+                    </button>
+                    <button class="v8-btn-contact email" onclick="v8_compartir('email')">
+                        <span class="material-icons-round" style="font-size:20px; color:white">email</span>
+                    </button>
+                    <button class="v8-send-btn" onclick="guardarPedidoFinal()">ENVIAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  <div id="modalPrecioHistorial" class="modal-overlay">
-      <div class="modal-content-simple">
-          <div class="modal-header-simple">
-              <span id="tituloHistorialPrecio">Historial de Precios</span>
-              <span class="material-icons-round modal-close-icon" onclick="document.getElementById('modalPrecioHistorial').style.display='none'">close</span>
-          </div>
-          <div id="listaPreciosHistorial" style="max-height:300px; overflow-y:auto"></div>
-          <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Últimos 5 cambios registrados.</div>
-      </div>
-  </div>
+    <div id="app-mode-visual" class="hidden">
+        
+        <div id="v9-view-provs" class="v9-view">
+            <div class="v9-app-bar">
+                <div class="v9-title">PEDIDOS (Lector)</div>
 
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-logout-pill" onclick="v9_salirModoLector()">
+                        <span class="material-icons-round" style="font-size:16px">admin_panel_settings</span> ADMIN
+                    </button>
 
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('v96 registrado correctamente'))
-          .catch(err => console.log('Error registro SW', err));
-      });
-    }
-  </script>
+                    <button class="btn-logout-pill" onclick="cerrarSesion()">
+                        <span class="material-icons-round" style="font-size:16px">logout</span> SALIR
+                    </button>
+                </div>
+            </div>
+            
+            <div class="v9-list-container" id="v9-prov-list"></div>
 
-  <script type="module" src="js/main.js"></script>
+            <div style="padding: 10px 15px; font-weight:700; color:#888; text-transform:uppercase; font-size:13px; margin-top:10px">
+                Historial Reciente
+            </div>
+            <div class="v9-list-container" id="v9-dash-list" style="padding-top:0"></div>
+        </div>
+
+        <div id="v9-view-prods" class="v9-view hidden">
+            <div class="v9-app-bar">
+                <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
+                    <div class="v9-back-btn-container" onclick="v9_volverInicio()">
+                        <span class="material-icons-round">arrow_back</span>
+                        <span style="margin-left:6px">VOLVER</span>
+                    </div>
+                    <div class="v9-title" id="v9-prov-title">...</div>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button style="border:none; background:none; color:#1967d2" onclick="v9_toggleSortMode()">
+                        <span class="material-icons-round" id="v9-sort-icon">sort_by_alpha</span>
+                    </button>
+                    <button style="border:none; background:none; color:#d32f2f" onclick="v9_borrarPedidoActual()"><span
+                            class="material-icons-round">delete_forever</span></button>
+                </div>
+            </div>
+            <div id="v9-chips-container" style="padding:10px 15px; display:flex; gap:5px; overflow-x:auto;"></div>
+            <div class="v9-list-container" id="v9-prod-list"></div>
+        </div>
+
+    </div>
+
+    <div id="modalHistorialSimple" class="modal-overlay">
+        <div class="modal-content-simple">
+            <div class="modal-header-simple">
+                <span>Historial <span id="historialProvName">...</span></span>
+                <span class="material-icons-round modal-close-icon"
+                    onclick="document.getElementById('modalHistorialSimple').style.display='none'">close</span>
+            </div>
+            <div id="historialListContent"></div>
+            <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Solo se muestran pedidos
+                enviados (no borrados).</div>
+        </div>
+    </div>
+
+    <div id="modalDetallePedido" class="modal-overlay">
+        <div class="modal-content-simple">
+            <div class="modal-header-simple">
+                <span id="detalleTitulo">Detalle Pedido</span>
+                <span class="material-icons-round modal-close-icon"
+                    onclick="document.getElementById('modalDetallePedido').style.display='none'">close</span>
+            </div>
+            <div id="detallePedidoContent"></div>
+            <div class="detail-actions">
+                <button class="btn-copy" onclick="v8_copiarTextoHistorial()">
+                    <span class="material-icons-round">content_copy</span> COPIAR
+                </button>
+                <button class="btn-reload" onclick="v8_cargarPedidoHistorial()">
+                    <span class="material-icons-round">restore_page</span> CARGAR
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalPrecioHistorial" class="modal-overlay">
+        <div class="modal-content-simple">
+            <div class="modal-header-simple">
+                <span id="tituloHistorialPrecio">Historial de Precios</span>
+                <span class="material-icons-round modal-close-icon"
+                    onclick="document.getElementById('modalPrecioHistorial').style.display='none'">close</span>
+            </div>
+            <div id="listaPreciosHistorial" style="max-height:300px; overflow-y:auto"></div>
+            <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Últimos 5 cambios registrados.
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    // ELIMINADA LA VERSIÓN DEL CONSOLE.LOG
+                    .then(reg => console.log('Service Worker registrado correctamente'))
+                    .catch(err => console.log('Error registro SW', err));
+            });
+        }
+    </script>
+
+    <script type="module" src="js/main.js"></script>
 </body>
+
 </html>

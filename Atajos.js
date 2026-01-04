@@ -3,8 +3,11 @@ git pull
 
 Al terminar, guardas y subes a la nube:
 git add .
-git commit -m "Restaurada v96"
+git commit -m "Corregido Lector y autoversión"
 git push
 
 Ordenar código:
 Shift+Alt+F
+
+Asegurar directorio
+firebase use pedidos-rail-app-2025-87f2c
