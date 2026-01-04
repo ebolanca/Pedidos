@@ -1,57 +1,87 @@
-/* =============================================================
-   ADMIN.JS - Lógica del Importador
-   ============================================================= */
+/* public/js/admin.js */
 import { firebaseConfig } from './config.js';
 
-// Inicializamos Firebase
-firebase.initializeApp(firebaseConfig);
+// Inicializamos Firebase solo para esta página de Admin
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Lógica de Autenticación Anónima para poder escribir
-auth.signInAnonymously().then(() => {
-    document.getElementById("authStatus").innerHTML = "<span style='color:green'>✅ Conectado y autorizado.</span>";
-    habilitarBoton();
-}).catch(e => {
-    console.error(e);
-    let msg = "❌ Error de conexión: " + e.code;
-    if(e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed') {
-        msg += "<br>👉 <b>SOLUCIÓN:</b> Activa 'Anónimo' en Authentication > Sign-in method en la consola Firebase.";
+// --- AUTENTICACIÓN ADMIN ---
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById("authStatus").innerHTML = "<span style='color:green'>✅ Conectado (" + user.email + ")</span>";
+        habilitarBotones();
+        cargarSelectorProveedores();
+    } else {
+        window.location.href = "login.html"; // Si no es admin, fuera
     }
-    document.getElementById("authStatus").innerHTML = "<span style='color:red'>" + msg + "</span>";
 });
 
-// Chequeo de seguridad por si tarda mucho
-setTimeout(() => {
-    const btn = document.getElementById("btnImport");
-    if(btn && btn.disabled && !btn.innerText.includes("SUBIR")) {
-        const status = document.getElementById("authStatus");
-        if(status) status.innerHTML += "<br><span style='color:orange'>⚠️ Tardando mucho... Revisa tu conexión.</span>";
-    }
-}, 5000);
-
-function habilitarBoton() {
-    const btn = document.getElementById("btnImport");
-    if(btn) {
-        btn.innerText = "🚀 SUBIR DATOS A FIREBASE";
-        btn.disabled = false;
-    }
+function habilitarBotones() {
+    const btnImport = document.getElementById("btnImport");
+    const btnManual = document.getElementById("btnManual");
+    if(btnImport) { btnImport.innerText = "🚀 PROCESAR IMPORTACIÓN"; btnImport.disabled = false; }
+    if(btnManual) { btnManual.disabled = false; }
 }
 
-// --- FUNCIÓN DE PARSEO CSV ---
+// --- UTILIDADES ---
+function generarIdProducto(provName, prodName) {
+    const cleanProv = provName.trim().substring(0, 4).toUpperCase();
+    const cleanProd = prodName.trim().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+    return `${cleanProv}_${cleanProd}`;
+}
+
+function normalizarResponsable(resp) {
+    if (!resp || resp.toLowerCase() === "responsable") return "Todos";
+    const r = resp.toLowerCase();
+    if(r.includes("flor")) return "Flor";
+    if(r.includes("jose") || r.includes("josé")) return "Jose";
+    if(r.includes("amina")) return "Amina";
+    if(r.includes("jazmin") || r.includes("aaron")) return "Jazmín y Aarón";
+    if(r.includes("jhoan")) return "Jhoan";
+    return resp;
+}
+
+async function cargarSelectorProveedores() {
+    const sel = document.getElementById("selProveedor");
+    sel.innerHTML = "<option value=''>Cargando...</option>";
+    try {
+        const snap = await db.collection("proveedores").get();
+        const provs = [];
+        snap.forEach(doc => provs.push(doc.id));
+        provs.sort();
+        sel.innerHTML = "<option value=''>-- Selecciona Proveedor --</option>";
+        provs.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p; opt.innerText = p; sel.appendChild(opt);
+        });
+    } catch(e) { sel.innerHTML = "<option>Error cargando lista</option>"; }
+}
+
+// --- LECTURA DE ARCHIVO ---
+function leerArchivo(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
+        reader.readAsText(file);
+    });
+}
+
 function csvToArray(str, delimiter = ",") {
     const rows = [];
     let arr = [];
     let quote = false;
     let col = "";
-    let startIdx = str.indexOf("\n") + 1;
-    if(startIdx === 0) startIdx = 0; 
-
-    for (let i = startIdx; i < str.length; i++) {
+    // Normalizar saltos de línea para evitar errores
+    str = str.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    for (let i = 0; i < str.length; i++) {
         let cc = str[i];
         if (cc === '"') { quote = !quote; continue; }
         if (cc === delimiter && !quote) { arr.push(col.trim()); col = ""; continue; }
-        if ((cc === '\r' || cc === '\n') && !quote) { 
+        if (cc === '\n' && !quote) { 
             if(col || arr.length > 0) arr.push(col.trim());
             if(arr.length > 0) rows.push(arr);
             arr = []; col = ""; continue; 
@@ -62,97 +92,131 @@ function csvToArray(str, delimiter = ",") {
     return rows;
 }
 
-// --- FUNCIÓN PRINCIPAL DE IMPORTACIÓN ---
+// --- PROCESO PRINCIPAL (CSV) ---
 async function procesarImportacion() {
     const btn = document.getElementById("btnImport");
     const status = document.getElementById("status");
-    const provNameInput = document.getElementById("provName");
-    const csvDataInput = document.getElementById("csvData");
+    const fileInput = document.getElementById("fileUpload");
+    const textArea = document.getElementById("csvData");
 
-    const provName = provNameInput.value.trim();
-    const rawData = csvDataInput.value.trim();
+    let rawData = "";
 
-    if(!provName) return alert("❌ Escribe el nombre del proveedor.");
-    if(!rawData) return alert("❌ Pega el contenido del CSV.");
+    // Leemos el archivo si existe, si no, leemos el textarea
+    if (fileInput && fileInput.files.length > 0) {
+        try {
+            status.style.display = "block";
+            status.className = "status info";
+            status.innerHTML = "Leyendo archivo...";
+            rawData = await leerArchivo(fileInput.files[0]);
+        } catch (e) {
+            return alert("Error leyendo el archivo: " + e.message);
+        }
+    } else if (textArea) {
+        rawData = textArea.value.trim();
+    }
+
+    if(!rawData) return alert("❌ Selecciona un archivo CSV o pega el contenido.");
 
     btn.disabled = true;
-    btn.innerText = "⏳ Procesando...";
-    status.className = "status info";
-    status.style.display = "block"; // Asegurar que se ve
-    status.innerHTML = "Analizando CSV...";
+    status.style.display = "block";
+    status.innerHTML = "Analizando estructura...";
 
     try {
         const filas = csvToArray(rawData);
-        if(filas.length === 0) throw new Error("No se han detectado filas. Revisa el formato.");
+        const datosPorProveedor = {};
+        let proveedorActual = null;
+        let totalProductos = 0;
 
-        status.innerHTML = `Detectadas ${filas.length} filas. Subiendo a la nube...`;
+        for(let i=0; i<filas.length; i++) {
+            const cols = filas[i];
+            const col0 = cols[0] ? cols[0].trim() : "";
+            if(!col0 || col0 === "Nombre") continue; 
+
+            // Detectar Proveedor
+            if (cols.length < 3 || (!cols[2] && !cols[3])) {
+                proveedorActual = col0.replace(/[:\.]/g, '').trim();
+                proveedorActual = proveedorActual.replace(/\[source.*\]/g, "").trim(); 
+                if(!datosPorProveedor[proveedorActual]) {
+                    datosPorProveedor[proveedorActual] = { prod: [], resp: new Set(["Roberto"]) };
+                }
+                continue;
+            }
+
+            if (!proveedorActual) continue;
+
+            const nombre = col0.replace(/"/g, '');
+            const resp = normalizarResponsable(cols[3] || "Todos");
+            
+            datosPorProveedor[proveedorActual].prod.push({
+                id: generarIdProducto(proveedorActual, nombre),
+                data: {
+                    nombre: nombre,
+                    unidad: cols[2] || "ud",
+                    responsable: resp,
+                    categoria: cols[4] || "General",
+                    precio: cols[5] ? cols[5].trim() : "",
+                    proveedor: proveedorActual
+                }
+            });
+            datosPorProveedor[proveedorActual].resp.add(resp);
+            totalProductos++;
+        }
 
         const batch = db.batch();
-        const responsablesSet = new Set();
-        responsablesSet.add("Roberto"); 
+        let op = 0;
         
-        let count = 0;
+        status.innerHTML = `Detectados ${Object.keys(datosPorProveedor).length} proveedores y ${totalProductos} productos. Subiendo...`;
 
-        filas.forEach((cols, index) => {
-            let nombre = cols[0];
-            if(!nombre && cols[3]) nombre = cols[3]; 
-            if(!nombre || nombre.toLowerCase() === "producto" || nombre.match(/^,+$/)) return;
+        for (const [nom, dat] of Object.entries(datosPorProveedor)) {
+            const provRef = db.collection("proveedores").doc(nom);
+            batch.set(provRef, { actual: new Date(), responsables: Array.from(dat.resp) }, { merge: true });
+            op++;
 
-            let unidad = cols[2] || "ud";
-            let resp = cols[3] || "Todos";
-            let cat = cols[4] || "General";
-            // PRECIO (COLUMNA 5)
-            let precio = cols[5] ? cols[5].trim() : "";
-
-            if(resp.includes("@")) {
-                if(resp.includes("flor")) resp = "Flor";
-                else if(resp.includes("jose")) resp = "Jose";
-                else if(resp.includes("amina")) resp = "Amina";
-                else if(resp.includes("jazmin") || resp.includes("aaron")) resp = "Jazmín y Aarón";
-                else if(resp.includes("cris")) resp = "Cristina";
-                else if(resp.includes("jhoan")) resp = "Jhoan";
-                else if(resp.includes("enrique") || resp.includes("ebolanca")) resp = "Enrique";
+            for (const p of dat.prod) {
+                // merge: true para sobreescribir datos pero mantener historial si existe
+                batch.set(provRef.collection("productos").doc(p.id), p.data, { merge: true });
+                op++;
+                if (op >= 450) { await batch.commit(); op = 0; }
             }
-            if(!resp || resp === "Responsable") resp = "Todos";
-
-            responsablesSet.add(resp);
-
-            const idDoc = provName.substring(0,3).toUpperCase() + "_" + index + "_" + nombre.substring(0,5).replace(/[^a-zA-Z0-9]/g,'');
-            const ref = db.collection("proveedores").doc(provName).collection("productos").doc(idDoc);
-            
-            batch.set(ref, {
-                nombre: nombre.replace(/"/g, ''),
-                unidad: unidad,
-                responsable: resp,
-                categoria: cat,
-                precio: precio,
-                proveedor: provName
-            });
-            count++;
-        });
-
-        await db.collection("proveedores").doc(provName).set({
-            creado: new Date(),
-            responsables: Array.from(responsablesSet)
-        }, { merge: true });
-
-        await batch.commit();
+        }
+        if (op > 0) await batch.commit();
 
         status.className = "status success";
-        status.innerHTML = `<b>✅ ¡SUBIDA COMPLETADA!</b><br>Proveedor: <strong>${provName}</strong><br>Productos subidos: <strong>${count}</strong><br>Responsables: ${Array.from(responsablesSet).join(", ")}`;
+        status.innerHTML = `✅ <b>IMPORTACIÓN COMPLETADA</b><br>Se han actualizado ${totalProductos} productos.`;
         
-        csvDataInput.value = "";
-        provNameInput.value = "";
-        setTimeout(() => { btn.innerText = "🚀 SUBIR OTRO"; btn.disabled = false; }, 2000);
-        
+        cargarSelectorProveedores(); // Recargar selector manual
+        btn.innerText = "🚀 PROCESO FINALIZADO";
+        setTimeout(() => { btn.disabled = false; btn.innerText = "🚀 PROCESAR OTRA VEZ"; }, 2000);
+
     } catch (e) {
-        console.error(e);
         status.className = "status error";
-        status.innerText = "❌ ERROR: " + e.message;
+        status.innerText = "Error Crítico: " + e.message;
         btn.disabled = false;
-        btn.innerText = "🚀 INTENTAR DE NUEVO";
     }
 }
 
-// Exponemos la función al window para el onclick del HTML
+async function guardarManual() {
+    const prov = document.getElementById("selProveedor").value;
+    const nombre = document.getElementById("mNombre").value.trim();
+    if(!prov || !nombre) return alert("Faltan datos");
+
+    try {
+        const id = generarIdProducto(prov, nombre);
+        await db.collection("proveedores").doc(prov).collection("productos").doc(id).set({
+            nombre: nombre,
+            precio: document.getElementById("mPrecio").value,
+            unidad: document.getElementById("mUnidad").value || "ud",
+            categoria: document.getElementById("mCategoria").value || "General",
+            responsable: document.getElementById("mResponsable").value,
+            proveedor: prov
+        }, { merge: true });
+        
+        alert("✅ Producto guardado correctamente.");
+        document.getElementById("mNombre").value = "";
+        document.getElementById("mPrecio").value = "";
+    } catch(e) { alert(e.message); }
+}
+
+// Exponemos las funciones para que funcionen los onclick del HTML
 window.procesarImportacion = procesarImportacion;
+window.guardarManual = guardarManual;

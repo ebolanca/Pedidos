@@ -16,7 +16,7 @@ let auth = firebase.auth();
 
 // --- VARIABLES GLOBALES DEL MÓDULO ---
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
-const CURRENT_CLIENT_VERSION = "10.3";
+const CURRENT_CLIENT_VERSION = "10.6";
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
@@ -53,7 +53,7 @@ function redirectToLogin() {
 
 // --- LÓGICA DE INICIO ---
 
-/* main.js */
+/* main.js - Función iniciarApp */
 function iniciarApp() {
     auth.onAuthStateChanged(user => {
         const loader = document.getElementById('loading-screen');
@@ -70,27 +70,24 @@ function iniciarApp() {
 
             currentUser = userEmail.trim().toLowerCase().replace(/\s/g, '');
 
-            // LÓGICA DE ROLES
             if (ADMIN_EMAILS.includes(currentUser)) userRole = "admin";
             else userRole = "worker";
 
             userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
-
             let displayName = userName;
             if (currentUser === 'moisesmonsalve04@gmail.com') displayName = "Moisés (Perfil Cristina)";
 
             if (document.getElementById("v8-userDisplay")) {
                 document.getElementById("v8-userDisplay").innerText = displayName;
             }
-            
-            // CAMBIO AQUÍ: Mostramos la versión en la barra negra usando la constante global
+
+            // --- BARRA DE VERSIÓN ---
             const debugBar = document.getElementById("debug-bar");
             if (debugBar) debugBar.innerText = `v${CURRENT_CLIENT_VERSION} | ${displayName}`;
 
-            // Iniciamos el vigilante para que compruebe si esta versión coincide con la de Firebase
+            // --- ACTIVAMOS VIGILANTE ---
             initVersionWatcher();
 
-            // Iniciamos la app
             initV8_GestionMode();
 
         } else {
@@ -136,8 +133,21 @@ function v9_salirModoLector() {
 
 function initV8_GestionMode() {
     document.getElementById('app-mode-gestion').classList.remove('hidden');
+    
+    // Texto del rol
     document.getElementById('v8-roleDisplay').innerText = userRole === 'admin' ? "Administrador" : "Personal";
-    if (userRole === 'admin') document.getElementById("v8-admin-lector-toggle").classList.remove("hidden");
+    
+    // --- BLOQUE QUE FALTA: MOSTRAR BOTONES ADMIN ---
+    const adminBtns = document.getElementById("v8-admin-buttons");
+    if (userRole === 'admin') {
+        // Si soy admin, quito la clase hidden para que se vean
+        if(adminBtns) adminBtns.classList.remove("hidden");
+    } else {
+        // Si no, me aseguro de que estén ocultos
+        if(adminBtns) adminBtns.classList.add("hidden");
+    }
+    // -----------------------------------------------
+
     cargarFavoritos();
     v8_cargarProveedores();
     v8_cargarDashboardHistorial();
@@ -1464,8 +1474,8 @@ function initVersionWatcher() {
     db.collection("system").doc("config").onSnapshot((doc) => {
         if (doc.exists) {
             const serverVersion = doc.data().version;
-            
-            // CORRECCIÓN AQUÍ: Usamos CURRENT_CLIENT_VERSION
+
+            // Usamos la variable global correcta
             console.log(`📡 Verificando: App [${CURRENT_CLIENT_VERSION}] vs Server [${serverVersion}]`);
 
             if (serverVersion && serverVersion !== CURRENT_CLIENT_VERSION) {
@@ -1487,7 +1497,7 @@ function forceUpdate(newVersion) {
     // 2. Desregistrar Service Workers
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((regs) => {
-            for(let registration of regs) registration.unregister();
+            for (let registration of regs) registration.unregister();
         });
     }
 
@@ -1499,8 +1509,8 @@ function forceUpdate(newVersion) {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         color: white; font-family: sans-serif; text-align: center;
     `;
-    
-    // AÑADIDO: Estilos de animación inline para asegurar que el spinner gire siempre
+
+    // Estilos de animación inline
     alertDiv.innerHTML = `
         <span class="material-icons-round" style="font-size: 64px; margin-bottom: 20px; color: #4ade80;">rocket_launch</span>
         <h2 style="font-size: 24px; font-weight: 700; margin: 0;">Actualizando...</h2>
@@ -1513,6 +1523,10 @@ function forceUpdate(newVersion) {
     // 4. Recarga forzada
     setTimeout(() => { window.location.reload(true); }, 2000);
 }
+
+// --- ARRANQUE DE LA APP ---
+// (Esto es vital, si no está, la app no hace nada)
+iniciarApp();
 
 /* =========================================================
    EXPOSICIÓN GLOBAL PARA HTML

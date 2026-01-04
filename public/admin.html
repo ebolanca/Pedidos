@@ -8,57 +8,82 @@
     
     <style>
         body { font-family: 'Inter', sans-serif; padding: 20px; background: #f0f2f5; color: #333; margin: 0; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h1 { margin-top: 0; color: #007bff; font-size: 24px; }
-        label { font-weight: 600; display: block; margin-top: 20px; margin-bottom: 8px; font-size: 14px; color: #555; }
-        input, textarea { width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; box-sizing: border-box; font-size: 14px; font-family: monospace; }
-        input:focus, textarea:focus { outline: none; border-color: #007bff; }
-        textarea { height: 150px; white-space: pre; overflow-x: auto; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h1, h2 { margin-top: 0; color: #007bff; }
+        h2 { font-size: 18px; margin-top: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        label { font-weight: 600; display: block; margin-top: 15px; margin-bottom: 5px; font-size: 13px; color: #555; }
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; box-sizing: border-box; font-size: 13px; font-family: inherit; }
+        textarea { height: 150px; white-space: pre; overflow-x: auto; font-family: monospace; }
         
-        button { margin-top: 25px; background: #28a745; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px rgba(40,167,69,0.2); }
-        button:hover { background: #218838; }
-        button:disabled { background: #e9ecef; color: #adb5bd; cursor: not-allowed; box-shadow: none; }
+        .btn-green { background: #28a745; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; }
+        .btn-blue { background: #007bff; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; }
+        button:disabled { background: #e9ecef; color: #adb5bd; cursor: not-allowed; }
         
-        .status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; word-break: break-word; font-size: 14px; line-height: 1.5; }
-        .success { background: #d4edda; color: #155724; display: block; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; display: block; border: 1px solid #f5c6cb; }
-        .info { background: #cce5ff; color: #004085; display: block; border: 1px solid #b8daff; }
+        .tips { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid #ffeeba; }
+        .status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         
-        .tips { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 13px; margin-bottom: 25px; border: 1px solid #ffeeba; line-height: 1.6; }
-        code { background: rgba(0,0,0,0.05); padding: 2px 5px; border-radius: 4px; font-family: monospace; font-weight: bold; }
-        #authStatus { font-size: 13px; margin-bottom: 15px; font-weight: 600; text-align: right; }
+        .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .back-btn { display: inline-block; margin-bottom: 15px; text-decoration: none; color: #666; font-weight: 600; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start">
-        <h1>📥 Importador Maestro</h1>
-        <div id="authStatus" style="color:#f39c12">🔌 Conectando...</div>
+    <a href="index.html" class="back-btn">← Volver a la App</a>
+    <div style="display:flex; justify-content:space-between; align-items:center">
+        <h1>Gestor de Productos</h1>
+        <div id="authStatus" style="font-size:12px; font-weight:bold; color:#f39c12">🔌 Conectando...</div>
     </div>
-    
+
     <div class="tips">
-        <strong>💡 Instrucciones CSV:</strong><br>
-        1. Columnas obligatorias: <code>Nombre, Cantidad, Unidad, Responsable, Categoria, Precio</code><br>
-        2. Copia las celdas del Excel (o el texto separado por comas) y pégalo abajo.<br>
-        3. Escribe el nombre del proveedor exactamente como quieres que aparezca.
+        <strong>Opción A: Carga Masiva (Pegar Excel/CSV)</strong><br>
+        El sistema detecta automáticamente los proveedores si la línea tiene solo el nombre en la primera columna.<br>
+        Formato: <code>Nombre, Cantidad, Unidad, Responsable, Categoría, Precio</code>
+    </div>
+    <textarea id="csvData" placeholder="Mercadona,,,,,&#10;Tomates,5,kg,Cocina,Verdura,2.50"></textarea>
+    <button onclick="procesarImportacion()" id="btnImport" class="btn-green" disabled>⏳ Cargando...</button>
+    <div id="status" class="status"></div>
+
+    <h2>Opción B: Añadir un Producto Manual</h2>
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #e9ecef;">
+        
+        <label>1. Selecciona Proveedor</label>
+        <select id="selProveedor">
+            <option value="">-- Cargando proveedores... --</option>
+        </select>
+
+        <label>2. Detalles del Producto</label>
+        <div class="grid-2">
+            <input type="text" id="mNombre" placeholder="Nombre (Ej: Lejía)">
+            <input type="number" id="mPrecio" placeholder="Precio (€)" step="0.01">
+        </div>
+        
+        <div class="grid-3" style="margin-top:10px">
+            <input type="text" id="mUnidad" placeholder="Unidad (Caja, Kg...)">
+            <input type="text" id="mCategoria" placeholder="Categoría">
+            <select id="mResponsable">
+                <option value="Todos">Resp: Todos</option>
+                <option value="Cocina">Cocina</option>
+                <option value="Barra">Barra</option>
+                <option value="Flor">Flor</option>
+                <option value="Jose">Jose</option>
+                <option value="Amina">Amina</option>
+                <option value="Jazmín y Aarón">Jazmín y Aarón</option>
+                <option value="Jhoan">Jhoan</option>
+            </select>
+        </div>
+
+        <button onclick="guardarManual()" id="btnManual" class="btn-blue" disabled>💾 GUARDAR PRODUCTO</button>
     </div>
 
-    <label>Nombre del Proveedor (Ej: Vecino)</label>
-    <input type="text" id="provName" placeholder="Escribe el nombre exacto...">
-
-    <label>Pegar contenido del CSV</label>
-    <textarea id="csvData" placeholder="Tomates,5,kg,Cocina,Verdura,2.50"></textarea>
-
-    <button onclick="procesarImportacion()" id="btnImport" disabled>⏳ Esperando conexión...</button>
-    
-    <div id="status" class="status"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-
 <script type="module" src="js/admin.js"></script>
 
 </body>

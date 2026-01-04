@@ -58,6 +58,33 @@ body.offline { padding-top: 55px; }
 .v8-user-info { font-weight: 700; color: #333; font-size: 15px; }
 .v8-user-role { font-size: 12px; color: #666; }
 
+/* === BOTONERA ADMIN (NUEVO) === */
+.v8-admin-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 5px; /* Ajuste ligero */
+    margin-bottom: 15px;
+}
+.v8-btn-admin {
+    border: none;
+    padding: 15px;
+    border-radius: 10px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: transform 0.1s;
+}
+.v8-btn-admin:active { transform: scale(0.98); }
+.action-import { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); } /* Morado */
+.action-lector { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); } /* Rosado/Naranja */
+
 .v8-prov-control { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
 .v8-select { flex: 1; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #dee2e6; background: #fff; font-weight: 500; }
 
