@@ -3,8 +3,8 @@ git pull
 
 Al terminar, guardas y subes a la nube:
 git add .
-git commit -m "Corregido Lector y autoversión"
-git push
+git commit -m "Corregido Lector y autoversión 10.3"
+git push -f origin main
 
 Ordenar código:
 Shift+Alt+F
