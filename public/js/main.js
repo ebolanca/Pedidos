@@ -16,7 +16,7 @@ let auth = firebase.auth();
 
 // --- VARIABLES GLOBALES DEL MÓDULO ---
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
-const CURRENT_CLIENT_VERSION = "10.6";
+const CURRENT_CLIENT_VERSION = "10.8";
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
@@ -133,18 +133,18 @@ function v9_salirModoLector() {
 
 function initV8_GestionMode() {
     document.getElementById('app-mode-gestion').classList.remove('hidden');
-    
+
     // Texto del rol
     document.getElementById('v8-roleDisplay').innerText = userRole === 'admin' ? "Administrador" : "Personal";
-    
+
     // --- BLOQUE QUE FALTA: MOSTRAR BOTONES ADMIN ---
     const adminBtns = document.getElementById("v8-admin-buttons");
     if (userRole === 'admin') {
         // Si soy admin, quito la clase hidden para que se vean
-        if(adminBtns) adminBtns.classList.remove("hidden");
+        if (adminBtns) adminBtns.classList.remove("hidden");
     } else {
         // Si no, me aseguro de que estén ocultos
-        if(adminBtns) adminBtns.classList.add("hidden");
+        if (adminBtns) adminBtns.classList.add("hidden");
     }
     // -----------------------------------------------
 
@@ -193,11 +193,17 @@ function v8_cargarDashboardHistorial() {
     dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando...</div>";
 
     let q = db.collection("pedidos");
+
+    // 1. Filtro de seguridad (si es trabajador, solo ve los suyos)
     if (userRole === 'worker') {
         q = q.where("email", "==", currentUser);
     }
 
-    q.limit(20).get().then(snap => {
+    // 2. ORDENAR POR FECHA (IMPORTANTE: Esto es lo que arregla que no salgan los nuevos)
+    q = q.orderBy("fecha", "desc");
+
+    // 3. LIMITAR A 10 (Para que la lista no sea kilométrica)
+    q.limit(10).get().then(snap => {
         if (snap.empty) {
             dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
             return;
@@ -205,12 +211,6 @@ function v8_cargarDashboardHistorial() {
 
         let pedidos = [];
         snap.forEach(doc => pedidos.push(doc.data()));
-        pedidos.sort((a, b) => {
-            let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
-            let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
-            return db - da;
-        });
-        pedidos = pedidos.slice(0, 10);
 
         let html = "";
         pedidos.forEach(d => {
@@ -245,7 +245,10 @@ function v8_cargarDashboardHistorial() {
         });
         dashList.innerHTML = html;
     }).catch(e => {
-        dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error cargando historial.</div>";
+        console.error(e);
+        // NOTA IMPORTANTE: Si eres trabajador, es posible que la consola te pida crear un índice.
+        // Si no carga, abre la consola (F12) y haz clic en el enlace que te da Firebase.
+        dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error cargando historial (Revisa índices).</div>";
     });
 }
 
@@ -917,6 +920,13 @@ function v8_generarTextoResumen(pedidoData = null) {
     const lineas = [];
     const manuales = [];
 
+    // Preparamos el catálogo de nombres para búsqueda rápida
+    // (Esto ayuda si allProducts no tiene el dato pero podemos deducirlo)
+    const productMap = {};
+    if (allProducts && allProducts.length > 0) {
+        allProducts.forEach(p => productMap[p.id] = p.nombre);
+    }
+
     for (const [pid, qty] of Object.entries(items)) {
         if (qty > 0) {
             if (pid.startsWith("manual_")) {
@@ -925,10 +935,23 @@ function v8_generarTextoResumen(pedidoData = null) {
                 const nota = notes && notes[pid] ? ` (👀 ${notes[pid]})` : "";
                 manuales.push({ nombre, qty, unidad: "ud", nota });
             } else {
-                const p = allProducts.find(x => x.id === pid);
-                const nombre = p ? p.nombre : pid;
-                const unidad = p ? (p.unidad || "") : "";
+                // INTENTO DE BUSCAR NOMBRE REAL
+                let nombre = pid; // Valor por defecto: el ID
+
+                // 1. Buscamos en la lista cargada actualmente
+                if (productMap[pid]) {
+                    nombre = productMap[pid];
+                }
+                // 2. Si es el Lector y tenemos datos cargados ahí
+                else if (v9_currentData && v9_currentData.catalogoNombres && v9_currentData.catalogoNombres[pid]) {
+                    nombre = v9_currentData.catalogoNombres[pid];
+                }
+
+                // Recuperamos unidad y nota
+                const pObj = allProducts.find(x => x.id === pid);
+                const unidad = pObj ? (pObj.unidad || "") : "";
                 const nota = notes && notes[pid] ? ` (👀 ${notes[pid]})` : "";
+
                 lineas.push({ nombre, qty, unidad, nota });
             }
         }
@@ -1420,12 +1443,17 @@ function v9_renderListaLector() {
             finalPriceHtml = `<div class="v9-prod-price-final">${pFinal}€</div>`;
         }
 
+        // --- CORRECCIÓN: Buscamos el nombre real en la lista global ---
+        const prodReal = allProducts.find(p => p.id === item.id);
+        const nombreMostrado = prodReal ? prodReal.nombre : (item.nombre || item.id);
+        // --------------------------------------------------------------
+
         html += `
         <div class="v9-card-prod ${checkedClass}">
             <div class="v9-prod-left">
                 <div style="display:flex; flex-direction:column;">
                     <div class="v9-prod-name">
-                        ${item.nombre}
+                        ${nombreMostrado}
                     </div>
                     ${finalPriceHtml}
                     ${noteHtml}
