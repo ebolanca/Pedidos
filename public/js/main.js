@@ -16,7 +16,7 @@ let auth = firebase.auth();
 
 // --- VARIABLES GLOBALES DEL MÓDULO ---
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
-const CURRENT_CLIENT_VERSION = "10.8";
+const CURRENT_CLIENT_VERSION = "11.1";
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
@@ -74,8 +74,10 @@ function iniciarApp() {
             else userRole = "worker";
 
             userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
+
+            // --- CORRECCIÓN: Definimos displayName ---
             let displayName = userName;
-            if (currentUser === 'moisesmonsalve04@gmail.com') displayName = "Moisés (Perfil Cristina)";
+            // (Se ha eliminado la línea de Moisés)
 
             if (document.getElementById("v8-userDisplay")) {
                 document.getElementById("v8-userDisplay").innerText = displayName;
@@ -1163,10 +1165,13 @@ function v8_cargarPedidoHistorial() {
 
 // --- MODO LECTOR (VISUAL) ---
 
+/* main.js - Función initV9_VisualMode corregida */
+
 function initV9_VisualMode() {
     document.getElementById('app-mode-visual').classList.remove('hidden');
+
+    // Solo cargamos los borradores pendientes, NO el historial
     v9_cargarProveedoresResumen();
-    v9_cargarHistorialDashboard();
 }
 
 function v9_toggleSortMode() {

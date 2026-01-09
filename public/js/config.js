@@ -19,7 +19,7 @@ const ADMIN_EMAILS = ["quiebrakanto@gmail.com", "ebolanca@hotmail.com"];
 const MAPA_USUARIOS = {
     "quiebrakanto@gmail.com": "Roberto",      
     "ebolanca@hotmail.com": "Roberto",        
-    "aaronmg995@gmail.com": "Aaron", 
+    "aaronmg995@gmail.com": "Jazmín y Aarón", 
     "jasmiinrivas802@gmail.com": "Jazmín", 
     "flor101318@gmail.com": "Flor",
     "jhoansanch3z@gmail.com": "Jhoan",

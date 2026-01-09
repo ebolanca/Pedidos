@@ -27,10 +27,16 @@ function habilitarBotones() {
 // --- 2. UTILIDADES (IDs y Nombres) ---
 function generarIdProducto(provName, prodName) {
     if(!provName || !prodName) return "error_" + Date.now();
-    const cleanProv = provName.trim().substring(0, 4).toUpperCase();
+    
+    // CORRECCIÓN: Usar más caracteres o el nombre limpio completo
+    const cleanProv = provName.trim().toUpperCase()
+        .replace(/[^A-Z0-9]/g, "") // Quitar espacios y símbolos
+        .substring(0, 10); // Usar hasta 10 chars para evitar colisiones
+        
     const cleanProd = prodName.trim().toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar tildes
-        .replace(/[^a-z0-9]/g, ""); // Solo letras y números
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+        .replace(/[^a-z0-9]/g, ""); 
+        
     return `${cleanProv}_${cleanProd}`;
 }
 
