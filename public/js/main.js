@@ -16,7 +16,7 @@ let auth = firebase.auth();
 
 // --- VARIABLES GLOBALES DEL MÓDULO ---
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
-const CURRENT_CLIENT_VERSION = "11.1";
+const CURRENT_CLIENT_VERSION = "11.2";
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
@@ -207,7 +207,7 @@ function v8_cargarDashboardHistorial() {
     // 3. LIMITAR A 10 (Para que la lista no sea kilométrica)
     q.limit(10).get().then(snap => {
         if (snap.empty) {
-            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:999'>No hay actividad reciente.</div>";
             return;
         }
 
@@ -704,7 +704,7 @@ function v8_renderTabla() {
                 if (!isNaN(pNum)) {
                     const totalRow = (precioFinalUnitario * multiplicador).toFixed(2);
                     let infoIva = ivaVal > 0 ? `<span style="font-size:9px; color:#666"> (IVA ${ivaVal}%)</span>` : '';
-                    rowTotalHtml = `<span style="font-size:11px; color:#1565c0; font-weight:700; margin-left:6px; background:#e3f2fd; padding:1px 4px; border-radius:3px">= ${totalRow}€${infoIva}</span>`;
+                    rowTotalHtml = `<span class="v8-badge-total">= ${totalRow}€${infoIva}</span>`;
                 }
             }
 
@@ -737,23 +737,23 @@ function v8_renderTabla() {
                     const baseNum = parseFloat(precioBaseStr.replace(',', '.'));
                     if (!isNaN(baseNum)) {
                         const final = (baseNum * (1 + ivaVal / 100)).toFixed(2);
-                        labelPrecioFinal = `<div style="font-size:10px; color:#1976d2; margin-top:2px; font-weight:600">Total: ${final}€</div>`;
+                        labelPrecioFinal = `<div class="v8-price-final-label">Total: ${final}€</div>`;
                     }
                 }
 
                 htmlPrecio = `<div style="display:flex; align-items:center; margin-left:8px;">
                     <input type="number" value="${pesoVal}" 
                         placeholder="Kg/Ud"
-                        style="width:40px; border:1px solid #ced4da; border-radius:4px; padding:2px; font-size:11px; text-align:center; color:#666; margin-right:4px; background:#f9f9f9"
+                        class="v8-input-sm v8-input-weight"
                         onchange="v8_actualizarPesoProducto('${p.id}', this.value)"
                         onclick="event.stopPropagation()">
                     
                     <div style="display:flex; flex-direction:column; align-items:end">
                         <div style="display:flex; align-items:center">
-                            <span style="color:#28a745; font-size:12px; margin-right:1px">€</span>
+                            <span style="color:var(--success); font-size:12px; margin-right:1px">€</span>
                             <input type="text" value="${precioBaseStr}" 
                                 placeholder="Base"
-                                style="width:45px; border:1px solid #ced4da; border-radius:4px; padding:2px; font-size:13px; text-align:right; color:#28a745; font-weight:bold"
+                                class="v8-input-sm v8-input-price"
                                 onchange="v8_actualizarPrecioProducto('${p.id}', this.value)"
                                 onclick="event.stopPropagation()">
                         </div>

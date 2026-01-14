@@ -9,6 +9,9 @@ git push origin main
 Ordenar código:
 Shift+Alt+F
 
+Ver preview
+npx live-server
+
 Asegurar directorio
 firebase use pedidos-rail-app-2025-87f2c
 
