@@ -798,24 +798,22 @@ button {
 
 /* === MODALES === */
 .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(8px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
-    display: flex !important;
-    /* Force flex but handle visibility with opacity */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.modal-overlay[style*="display: flex"] {
+.modal-overlay.active {
     opacity: 1;
     pointer-events: auto;
-}
-
-.modal-overlay[style*="display: none"] {
-    display: flex !important;
-    opacity: 0;
-    pointer-events: none;
 }
 
 .modal-content-simple {
@@ -827,9 +825,13 @@ button {
     box-shadow: var(--shadow-xl);
     transform: scale(0.9);
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* SCROLL FIX */
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
 }
 
-.modal-overlay[style*="display: flex"] .modal-content-simple {
+.modal-overlay.active .modal-content-simple {
     transform: scale(1);
 }
 
@@ -842,6 +844,19 @@ button {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
+}
+
+/* Scrollable content */
+#historialListContent,
+#listaPreciosHistorial,
+#detallePedidoContent {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    flex: 1;
+    /* Take remaining space */
+    min-height: 0;
+    /* Necessary for flex item scrolling */
 }
 
 .modal-close-icon {

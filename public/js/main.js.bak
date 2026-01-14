@@ -2,25 +2,21 @@
    MAIN.JS - Lógica Principal (Modular)
    ============================================================= */
 
-// IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js'; // Config privada existente
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js';
-import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
-import { db, auth } from './modules/firebase-init.js';
+import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js';
 
+// --- INICIALIZACIÓN FIREBASE ---
+// Nota: Usamos la librería 'compat' cargada en el HTML, por lo que 'firebase' existe globalmente.
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+let db = firebase.firestore();
+// Habilitar persistencia (caché offline)
+db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+    console.log("Persistencia no disponible (posiblemente múltiples pestañas abiertas):", err.code);
+});
+let auth = firebase.auth();
 
-
-
-// --- INICIALIZACIÓN FIREBASE MOVIDA A MODULES/FIREBASE-INIT.JS ---
-// let db = firebase.firestore(); // Ahora importado
-// let auth = firebase.auth();   // Ahora importado
-
-
-
+// --- VARIABLES GLOBALES DEL MÓDULO ---
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
-// (Ahora importado de modules/constants.js)
-// const CURRENT_CLIENT_VERSION = "11.7"; // COMENTADO POR REFACTOR
-
+const CURRENT_CLIENT_VERSION = "11.4";
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
@@ -34,20 +30,26 @@ let currentHistoryPedido = null;
 let v9_sortMode = 'alpha';
 let currentIVAProduct = null;
 
-
 // --- FUNCIONES UTILITARIAS ---
+
 window.onerror = function (message, source, lineno, colno, error) {
     const loader = document.getElementById('loading-screen');
     if (loader) loader.style.display = 'none';
 };
 
-// haptic, updateConnectionStatus, redirectToLogin MOVIDOS A modules/utils.js
+function haptic() { if (navigator.vibrate) navigator.vibrate(15); }
 
+function updateConnectionStatus() {
+    if (navigator.onLine) document.body.classList.remove('offline');
+    else document.body.classList.add('offline');
+}
 window.addEventListener('online', updateConnectionStatus);
 window.addEventListener('offline', updateConnectionStatus);
 updateConnectionStatus();
 
-
+function redirectToLogin() {
+    setTimeout(() => { if (window.location.pathname.indexOf('login.html') === -1) window.location.href = "login.html"; }, 50);
+}
 
 // --- LÓGICA DE INICIO ---
 
@@ -979,13 +981,10 @@ function v8_generarTextoResumen(pedidoData = null) {
 
 function v8_historialSimple() {
     haptic();
-    console.log("📜 Abriendo historial para:", currentProv);
     document.getElementById("historialProvName").innerText = currentProv;
     const listContent = document.getElementById("historialListContent");
     listContent.innerHTML = "<div style='text-align:center;padding:10px;color:#999'>Cargando...</div>";
-
-    // USAR CLASE ACTIVE
-    document.getElementById("modalHistorialSimple").classList.add("active");
+    document.getElementById("modalHistorialSimple").style.display = "flex";
 
     db.collection("pedidos")
         .where("proveedor", "==", currentProv)
@@ -993,7 +992,6 @@ function v8_historialSimple() {
         .limit(30) // Increased limit
         .get()
         .then(snap => {
-            console.log("📜 Docs encontrados:", snap.size);
             if (snap.empty) {
                 listContent.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>No hay historial reciente para este proveedor.</div>";
                 return;
@@ -1001,7 +999,6 @@ function v8_historialSimple() {
 
             let pedidos = [];
             snap.forEach(doc => pedidos.push(doc.data()));
-            console.log("📜 Datos raw:", pedidos);
 
             // Filter out 'deleted' orders if you only want to show sent ones,
             // or keep them but style different. The user said "historial del pedido... no funciona".
@@ -1273,12 +1270,62 @@ function v9_borrarBorradorDirecto(provName) {
         });
 }
 
-/*
 function v9_cargarHistorialDashboard() {
-   // ... (Function disabled - Duplicate of v8_cargarDashboardHistorial)
-   console.warn("Legacy function v9_cargarHistorialDashboard called - Ignoring");
+    const dashList = document.getElementById("v9-dash-list");
+    dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando historial...</div>";
+
+    db.collection("pedidos").limit(50).get().then(snap => {
+        if (snap.empty) {
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente.</div>";
+            return;
+        }
+
+        let pedidos = [];
+        snap.forEach(doc => pedidos.push(doc.data()));
+        pedidos.sort((a, b) => {
+            let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
+            let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
+            return db - da;
+        });
+
+        pedidos = pedidos.filter(p => PROVEEDORES_LECTOR.includes(p.proveedor));
+        pedidos = pedidos.slice(0, 10);
+
+        if (pedidos.length === 0) {
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>Sin historial reciente (para ti).</div>";
+            return;
+        }
+
+        let html = "";
+        pedidos.forEach(d => {
+            const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
+            const fechaStr = f.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' });
+            const horaStr = f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const esBorrado = d.estado === "borrado";
+            const colorBorde = esBorrado ? "#dc3545" : "#007bff";
+            const colorTexto = esBorrado ? "#dc3545" : "#007bff";
+            const bgTexto = esBorrado ? "#ffebee" : "#e3f2fd";
+            const textoEstado = esBorrado ? "BORRADO" : "Enviado";
+
+            let btnBorrarHtml = `
+                  <div class="hist-delete-btn" onclick="v8_eliminarPedidoHistorial('${d.id_unico}', false); setTimeout(v9_cargarHistorialDashboard, 500);">
+                     <span class="material-icons-round">delete</span>
+                  </div>`;
+
+            html += `
+            <div class="v50-hist-card" style="border-left: 4px solid ${colorBorde};">
+                <div class="v50-hist-left">
+                    <div class="v50-hist-date">📅 ${fechaStr} ${horaStr} - 👤 ${d.usuario}</div>
+                    <div class="v50-hist-prov">${d.proveedor}</div>
+                </div>
+                <div class="v50-hist-status" style="color:${colorTexto}; background:${bgTexto}; margin-right:5px">${textoEstado}</div>
+                ${btnBorrarHtml}
+            </div>`;
+        });
+        dashList.innerHTML = html;
+    });
 }
-*/
 
 async function v9_abrirProveedorResumen(provName) {
     currentLectorProv = provName;
@@ -1530,56 +1577,6 @@ function forceUpdate(newVersion) {
 // (Esto es vital, si no está, la app no hace nada)
 iniciarApp();
 
-// Función para ver detalle desde el Dashboard (Pantalla Principal)
-async function v8_verDetalleDesdeDashboard_v2(idUnique) {
-    haptic();
-    console.log("🔍 Ver detalle dashboard:", idUnique);
-
-    document.getElementById("detalleTitulo").innerText = "Cargando...";
-    document.getElementById("detallePedidoContent").innerHTML = "<div style='text-align:center;padding:20px'>Cargando...</div>";
-
-    // USAR CLASE ACTIVE
-    document.getElementById("modalDetallePedido").classList.add("active");
-
-    try {
-        const snap = await db.collection("pedidos").where("id_unico", "==", idUnique).limit(1).get();
-        if (snap.empty) {
-            document.getElementById("detallePedidoContent").innerHTML = "<div style='padding:20px'>Pedido no encontrado</div>";
-            return;
-        }
-
-        const data = snap.docs[0].data();
-        let html = "";
-
-        document.getElementById("detalleTitulo").innerText = `Pedido ${data.proveedor}`;
-
-        // Renderizar items
-        const items = data.pedido || {};
-        for (const [nombre, cant] of Object.entries(items)) {
-            html += `
-             <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee">
-                <span style="font-weight:500">${nombre}</span>
-                <span style="font-weight:700">${cant}</span>
-             </div>`;
-        }
-
-        // Mostrar notas si hay
-        if (data.notas && Object.keys(data.notas).length > 0) {
-            html += `<div style="margin-top:15px; background:#fff3cd; padding:10px; border-radius:8px">`;
-            for (const [prod, nota] of Object.entries(data.notas)) {
-                html += `<div><b>${prod}:</b> ${nota}</div>`;
-            }
-            html += `</div>`;
-        }
-
-        document.getElementById("detallePedidoContent").innerHTML = html;
-
-    } catch (e) {
-        console.error(e);
-        document.getElementById("detallePedidoContent").innerHTML = "Error cargando detalle: " + e.message;
-    }
-}
-
 /* =========================================================
    EXPOSICIÓN GLOBAL PARA HTML
    (Necesario porque 'type=module' aísla el scope)
@@ -1601,7 +1598,7 @@ window.v9_volverInicio = v9_volverInicio;
 window.v9_toggleSortMode = v9_toggleSortMode;
 window.v9_borrarPedidoActual = v9_borrarPedidoActual;
 window.v8_eliminarPedidoHistorial = v8_eliminarPedidoHistorial;
-window.v8_verDetalleDesdeDashboard = v8_verDetalleDesdeDashboard_v2;
+window.v8_verDetalleDesdeDashboard = v8_verDetalleDesdeDashboard;
 window.toggleFav = toggleFav;
 window.v8_editarNota = v8_editarNota;
 window.v8_actualizarPesoProducto = v8_actualizarPesoProducto;

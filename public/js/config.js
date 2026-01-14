@@ -12,15 +12,15 @@ const firebaseConfig = {
 
 // 2. Constantes de Seguridad
 // Eliminamos LECTOR_EMAILS y dejamos solo ADMIN
-const ADMIN_EMAILS = ["quiebrakanto@gmail.com", "ebolanca@hotmail.com"]; 
+const ADMIN_EMAILS = ["quiebrakanto@gmail.com", "ebolanca@hotmail.com"];
 // const LECTOR_EMAILS = []; // Ya no es necesario
 
 // 3. Mapa de Usuarios (IGUAL)
 const MAPA_USUARIOS = {
-    "quiebrakanto@gmail.com": "Roberto",      
-    "ebolanca@hotmail.com": "Roberto",        
-    "aaronmg995@gmail.com": "Jazmín y Aarón", 
-    "jasmiinrivas802@gmail.com": "Jazmín", 
+    "quiebrakanto@gmail.com": "Roberto",
+    "ebolanca@hotmail.com": "Roberto",
+    "aaronmg995@gmail.com": "Aaron",
+    "jasmiinrivas802@gmail.com": "Jazmín",
     "flor101318@gmail.com": "Flor",
     "jhoansanch3z@gmail.com": "Jhoan",
     "ami.habtany15@gmail.com": "Amina",

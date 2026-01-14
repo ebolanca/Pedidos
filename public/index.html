@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
-    <link rel="stylesheet" href="css/styles.css?v=11.3">
+    <link rel="stylesheet" href="css/styles.css?v=11.7">
 </head>
 
 <body>
@@ -165,7 +165,7 @@
             <div class="modal-header-simple">
                 <span>Historial <span id="historialProvName">...</span></span>
                 <span class="material-icons-round modal-close-icon"
-                    onclick="document.getElementById('modalHistorialSimple').style.display='none'">close</span>
+                    onclick="document.getElementById('modalHistorialSimple').classList.remove('active')">close</span>
             </div>
             <div id="historialListContent"></div>
             <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Solo se muestran pedidos
@@ -178,7 +178,7 @@
             <div class="modal-header-simple">
                 <span id="detalleTitulo">Detalle Pedido</span>
                 <span class="material-icons-round modal-close-icon"
-                    onclick="document.getElementById('modalDetallePedido').style.display='none'">close</span>
+                    onclick="document.getElementById('modalDetallePedido').classList.remove('active')">close</span>
             </div>
             <div id="detallePedidoContent"></div>
             <div class="detail-actions">
@@ -197,7 +197,7 @@
             <div class="modal-header-simple">
                 <span id="tituloHistorialPrecio">Historial de Precios</span>
                 <span class="material-icons-round modal-close-icon"
-                    onclick="document.getElementById('modalPrecioHistorial').style.display='none'">close</span>
+                    onclick="document.getElementById('modalPrecioHistorial').classList.remove('active')">close</span>
             </div>
             <div id="listaPreciosHistorial" style="max-height:300px; overflow-y:auto"></div>
             <div style="font-size:11px; color:#999; margin-top:10px; text-align:center">Últimos 5 cambios registrados.
