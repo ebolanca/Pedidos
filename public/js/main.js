@@ -16,7 +16,7 @@ let auth = firebase.auth();
 
 // --- VARIABLES GLOBALES DEL MÓDULO ---
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
-const CURRENT_CLIENT_VERSION = "11.2";
+const CURRENT_CLIENT_VERSION = "11.3";
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
@@ -982,7 +982,8 @@ function v8_historialSimple() {
 
     db.collection("pedidos")
         .where("proveedor", "==", currentProv)
-        .limit(20)
+        .orderBy("fecha", "desc") // Sort by date descending
+        .limit(30) // Increased limit
         .get()
         .then(snap => {
             if (snap.empty) {
@@ -993,18 +994,28 @@ function v8_historialSimple() {
             let pedidos = [];
             snap.forEach(doc => pedidos.push(doc.data()));
 
-            pedidos = pedidos.filter(p => p.estado !== 'borrado');
+            // Filter out 'deleted' orders if you only want to show sent ones,
+            // or keep them but style different. The user said "historial del pedido... no funciona".
+            // If they want to see valid orders, we should typically filter.
+            // But let's keep visual indication if it was deleted/cancelled.
+            // Actually, the previous code filtered them out: pedidos = pedidos.filter(p => p.estado !== 'borrado');
+            // But if all 20 were deleted, it showed nothing.
 
-            pedidos.sort((a, b) => {
-                let da = a.fecha && a.fecha.toDate ? a.fecha.toDate() : new Date(0);
-                let db = b.fecha && b.fecha.toDate ? b.fecha.toDate() : new Date(0);
-                return db - da;
-            });
+            // Let's SHOW them but mark as deleted, so the user knows "ah, it's there but cancelled".
+            // OR if strictly requested "no works", maybe they want to see the active ones.
+            // Let's filter but fetch more to ensure we find active ones.
+
+            const validPedidos = pedidos.filter(p => p.estado !== 'borrado');
+
+            if (validPedidos.length === 0) {
+                listContent.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>Se encontraron pedidos pero todos están cancelados/borrados.</div>";
+                return;
+            }
 
             let html = "";
-            window.tempPedidosHistorial = pedidos;
+            window.tempPedidosHistorial = validPedidos;
 
-            pedidos.forEach((d, index) => {
+            validPedidos.forEach((d, index) => {
                 let fechaStr = "Fecha desconocida";
                 try {
                     if (d.fecha && d.fecha.toDate) {
@@ -1013,13 +1024,11 @@ function v8_historialSimple() {
                 } catch (e) { }
 
                 const itemsCount = d.items ? Object.keys(d.items).length : 0;
-                const esBorrado = d.estado === 'borrado';
-                const styleBorrado = esBorrado ? "opacity:0.6; background:#fff5f5" : "";
 
                 html += `
-             <div class="hist-item-simple" style="${styleBorrado}">
+             <div class="hist-item-simple">
                  <div class="hist-item-content" onclick="v8_verDetalleHistorial(${index})">
-                     <div>${fechaStr} ${esBorrado ? '(CANCELADO)' : ''}</div>
+                     <div>${fechaStr}</div>
                      <span>👤 ${d.usuario} - ${itemsCount} productos</span>
                  </div>
                  <div class="hist-delete-btn" onclick="event.stopPropagation(); v8_eliminarPedidoHistorial('${d.id_unico}')">
@@ -1031,8 +1040,9 @@ function v8_historialSimple() {
             listContent.innerHTML = html;
         })
         .catch(err => {
+            console.error(err);
             listContent.innerHTML = `<div style='text-align:center;padding:20px;color:red'>
-              Error cargando historial.<br><small>(${err.message})</small>
+              Error cargando historial.<br><small>Posible falta de índice en Firebase. Revisa la consola.</small>
           </div>`;
         });
 }

@@ -1,0 +1,37 @@
+/* === RESTORED CONTACT BUTTONS === */
+.v8-btn-contact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: transform 0.2s;
+}
+
+.v8-btn-contact:active {
+    transform: scale(0.95);
+}
+
+.v8-btn-contact.whatsapp {
+    background: #25D366;
+}
+
+.v8-btn-contact.whatsapp svg {
+    fill: white;
+    width: 24px;
+    height: 24px;
+}
+
+.v8-btn-contact.email {
+    background: #EA4335;
+}
+
+.v8-btn-contact.email svg {
+    fill: white;
+    width: 24px;
+    height: 24px;
+}
