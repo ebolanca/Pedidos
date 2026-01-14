@@ -19,7 +19,7 @@ import { db, auth } from './modules/firebase-init.js';
 
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
 // (Ahora importado de modules/constants.js)
-// const CURRENT_CLIENT_VERSION = "11.7"; // COMENTADO POR REFACTOR
+// const CURRENT_CLIENT_VERSION = "11.10"; // COMENTADO POR REFACTOR
 
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
@@ -1554,11 +1554,29 @@ async function v8_verDetalleDesdeDashboard_v2(idUnique) {
         document.getElementById("detalleTitulo").innerText = `Pedido ${data.proveedor}`;
 
         // Renderizar items
-        const items = data.pedido || {};
-        for (const [nombre, cant] of Object.entries(items)) {
+        const items = data.items || data.pedido || {};
+        for (const [id, cant] of Object.entries(items)) {
+            let nombreMostrar = id;
+
+            // 1. Intentar buscar en allProducts (si está cargado)
+            const pFound = allProducts.find(p => p.id === id);
+            if (pFound) {
+                nombreMostrar = pFound.nombre;
+            }
+            // 2. Si no, intentar limpiar el ID (ej: MERCAMADRID_aguacates -> Aguacates)
+            else {
+                const parts = id.split('_');
+                if (parts.length >= 2) {
+                    // Asumimos formato PROV_Nombre
+                    let rawName = parts.slice(1).join(' ');
+                    // Capitalizar primera letra
+                    if (rawName) nombreMostrar = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+                }
+            }
+
             html += `
              <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee">
-                <span style="font-weight:500">${nombre}</span>
+                <span style="font-weight:500">${nombreMostrar}</span>
                 <span style="font-weight:700">${cant}</span>
              </div>`;
         }
