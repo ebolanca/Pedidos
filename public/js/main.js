@@ -282,8 +282,8 @@ function v8_cambiarProveedor() {
     dashPanel.classList.add("hidden");
     prodArea.classList.remove("hidden");
     bottomBar.classList.remove("hidden");
-    document.getElementById("v8-tabla-wrapper").innerHTML = '<div style="padding:20px;text-align:center">Cargando catálogo...</div>';
-
+    document.getElementById("v8-tabla-wrapper").innerHTML = v8_renderSkeleton();
+    
     cart = {}; cartNotes = {}; suggestions = {};
 
     db.collection("proveedores").doc(currentProv).collection("productos").get()
@@ -399,7 +399,7 @@ function v8_setQty(id, val) {
 }
 
 function v8_add(id, amount) {
-    haptic();
+    haptic('success');
     const oldQty = cart[id] || 0;
     let current = cart[id] || 0;
     let nuevo = current + amount;
@@ -434,7 +434,7 @@ function v8_autoGestionPeso(id, newQty, oldQty) {
 }
 
 function v8_borrarBorrador() {
-    haptic();
+    haptic('heavy');
     if (confirm("¿Estás seguro de borrar TODO el pedido de " + currentProv + "?\n\nSe registrará en el historial como CANCELADO.")) {
 
         const d = new Date().toISOString().split('T')[0];
@@ -832,8 +832,8 @@ function v8_renderTabla() {
 }
 
 function v8_toggleCat(cid) { const el = document.querySelector(`.cat-group-${cid}`); if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none'; }
-function v8_toggleFiltro(f) { haptic(); v8_filter = (v8_filter === f) ? 'todos' : f; v8_renderTabla(); }
-function v8_toggleExpansion() { haptic(); v8_expanded = !v8_expanded; v8_renderTabla(); }
+function v8_toggleFiltro(f) { haptic('light'); v8_filter = (v8_filter === f) ? 'todos' : f; v8_renderTabla(); }
+function v8_toggleExpansion() { haptic('light'); v8_expanded = !v8_expanded; v8_renderTabla(); }
 
 function v8_calcularSugerenciasBackground() {
     db.collection("pedidos").where("proveedor", "==", currentProv).limit(20).get()
@@ -1610,6 +1610,25 @@ async function v8_verDetalleDesdeDashboard_v2(idUnique) {
         console.error(e);
         document.getElementById("detallePedidoContent").innerHTML = "Error cargando detalle: " + e.message;
     }
+}
+
+
+function v8_renderSkeleton() {
+    let html = "";
+    // Generar 12 filas de skeleton
+    for(let i=0; i<12; i++) {
+        const widthTitle = Math.floor(Math.random() * (70 - 40 + 1) + 40); // 40% a 70%
+        html += `
+            <div class="skeleton-row">
+                <div style="flex:1; padding-right:15px">
+                    <div class="skeleton skeleton-text" style="width: ${widthTitle}%"></div>
+                    <div class="skeleton skeleton-text" style="width: 30px; height: 12px"></div>
+                </div>
+                <div class="skeleton skeleton-qty"></div>
+            </div>
+        `;
+    }
+    return html;
 }
 
 /* =========================================================

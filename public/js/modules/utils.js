@@ -1,8 +1,17 @@
 
 // js/modules/utils.js
 
-export function haptic() {
-    if (navigator.vibrate) navigator.vibrate(15);
+export function haptic(pattern = 'light') {
+    if (!navigator.vibrate) return;
+    
+    switch(pattern) {
+        case 'light': navigator.vibrate(10); break;
+        case 'medium': navigator.vibrate(20); break;
+        case 'success': navigator.vibrate([10, 30, 10]); break;
+        case 'error': navigator.vibrate([30, 50, 30, 50, 30]); break;
+        case 'heavy': navigator.vibrate(40); break;
+        default: navigator.vibrate(15);
+    }
 }
 
 export function debounce(func, wait) {
