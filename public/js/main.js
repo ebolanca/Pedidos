@@ -19,7 +19,7 @@ import { db, auth } from './modules/firebase-init.js';
 
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
 // (Ahora importado de modules/constants.js)
-// const CURRENT_CLIENT_VERSION = "11.13"; // COMENTADO POR REFACTOR
+// const CURRENT_CLIENT_VERSION = "11.14"; // COMENTADO POR REFACTOR
 
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
@@ -644,9 +644,22 @@ function v8_renderTabla() {
         }
     }
 
+    const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
     allProducts.forEach(p => {
         const r = p.responsable ? p.responsable.trim() : "Todos";
-        if (userRole !== 'admin' && r !== "Todos" && !r.includes(userName)) return;
+        
+        let isVisible = false;
+        if (userRole === 'admin' || r === "Todos") {
+             isVisible = true;
+        } else {
+             // Normalización para evitar fallo por tildes (Aaron vs Aarón)
+             const rNorm = normalize(r);
+             const uNorm = normalize(userName);
+             if (rNorm.includes(uNorm)) isVisible = true;
+        }
+
+        if (!isVisible) return;
 
         if (searchText && !p.nombre.toLowerCase().includes(searchText)) return;
         if (v8_filter === 'pedido' && !cart[p.id]) return;
