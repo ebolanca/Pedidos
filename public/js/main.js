@@ -19,7 +19,7 @@ import { db, auth } from './modules/firebase-init.js';
 
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
 // (Ahora importado de modules/constants.js)
-// const CURRENT_CLIENT_VERSION = "11.14"; // COMENTADO POR REFACTOR
+// const CURRENT_CLIENT_VERSION = "11.15"; // COMENTADO POR REFACTOR
 
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
@@ -805,9 +805,17 @@ function v8_renderTabla() {
 
             } else {
                 // SI ES TRABAJADOR
+                // LOGICA IMAGEN (Placeholder o Real)
+                let imgHtml = "";
+                if (p.imagen) {
+                    imgHtml = `<img src="${p.imagen}" class="v8-prod-img" loading="lazy">`;
+                } else {
+                    imgHtml = `<div class="v8-prod-img"><span class="material-icons-round">image_not_supported</span></div>`;
+                }
+
                 row.innerHTML = `
                     <div class="v8-prod-info">
-                        <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
+                        ${imgHtml}
                         <div class="v8-text-col">
                             <div class="v8-name-row" style="display:flex; align-items:center">
                                 <div class="v8-prod-name">${p.nombre}</div>
@@ -818,9 +826,13 @@ function v8_renderTabla() {
                             </div>
                         </div>
                     </div>
-                    ${sugHtml}
-                    <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
-                           placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    
+                    <div style="display:flex; align-items:center; gap:8px">
+                         <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
+                         ${sugHtml}
+                         <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                                placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    </div>
                 `;
             }
 
