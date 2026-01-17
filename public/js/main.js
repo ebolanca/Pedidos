@@ -19,7 +19,7 @@ import { db, auth } from './modules/firebase-init.js';
 
 // IMPORTANTE: Cambia esto cada vez que subas cambios para forzar la actualización en los móviles
 // (Ahora importado de modules/constants.js)
-// const CURRENT_CLIENT_VERSION = "11.10"; // COMENTADO POR REFACTOR
+// const CURRENT_CLIENT_VERSION = "11.13"; // COMENTADO POR REFACTOR
 
 
 let currentUser, userRole, userName, currentProv, currentLectorProv;
@@ -175,8 +175,9 @@ function v8_cargarProveedores() {
             const d = doc.data();
             const resp = d.responsables || [];
 
-            const userNormalized = userName.toLowerCase().trim();
-            const isAllowed = Array.isArray(resp) && resp.some(r => r.toLowerCase().trim() === userNormalized);
+            const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const userNormalized = normalize(userName);
+            const isAllowed = Array.isArray(resp) && resp.some(r => normalize(r).includes(userNormalized));
 
             if (userRole === 'admin' || isAllowed || resp.includes("Todos")) {
                 list.push(doc.id);
