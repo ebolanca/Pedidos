@@ -608,23 +608,6 @@ button {
     filter: drop-shadow(0 0 5px rgba(37, 99, 235, 0.4));
 }
 
-/* === IMÁGENES PRODUCTO (Modo Trabajador) === */
-.v8-prod-img {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
-    object-fit: cover;
-    background: var(--gray-100);
-    border: 1px solid var(--gray-200);
-    margin-right: 12px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--gray-400);
-    font-size: 20px;
-}
-
 /* Suggestions */
 .v8-suggestion {
     flex-shrink: 0;
