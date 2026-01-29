@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js'; // Config privada existente
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.20';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
 import { db, auth } from './modules/firebase-init.js';
 
@@ -590,11 +590,16 @@ function v8_verHistorialPrecios(idProd) {
 function v8_renderTabla() {
     const wrapper = document.getElementById("v8-tabla-wrapper");
 
+    // Si hay un input activo, no renderizamos todo de nuevo (para evitar perder el foco)
+    // A MENOS que el contenedor solo tenga el "skeleton" (carga inicial)
     if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
-        v8_actualizarValoresEnTabla();
-        return;
+        if (!wrapper.querySelector('.skeleton-row')) {
+            v8_actualizarValoresEnTabla();
+            return;
+        }
     }
 
+    // Limpieza total del contenedor
     wrapper.innerHTML = "";
     const groups = {};
     let hasItems = false;
@@ -1667,3 +1672,286 @@ window.v9_abrirProveedorResumen = v9_abrirProveedorResumen;
 window.v9_toggleCheck = v9_toggleCheck;
 window.v8_entrarModoLector = v8_entrarModoLector;
 window.v9_salirModoLector = v9_salirModoLector;
+
+// === HERRAMIENTAS DEL LECTOR (FAB + CALCULADORA + COMPARADOR) ===
+
+// Estado de la calculadora
+let calcExpression = "";
+let calcResult = 0;
+let calcHistory = JSON.parse(localStorage.getItem("rail_calc_history") || "[]");
+let unitHistory = JSON.parse(localStorage.getItem("rail_unit_history") || "[]");
+
+// Toggle FAB Speed Dial
+function toggleToolsFab() {
+    haptic();
+    const fab = document.getElementById("toolsFab");
+    const icon = document.getElementById("toolsFabIcon");
+    fab.classList.toggle("open");
+    icon.textContent = fab.classList.contains("open") ? "close" : "build";
+}
+
+// Abrir/Cerrar Calculadora
+function openCalculator() {
+    haptic();
+    toggleToolsFab();
+    document.getElementById("modalCalculadora").classList.add("active");
+    renderCalcHistory();
+}
+
+function closeCalculator() {
+    document.getElementById("modalCalculadora").classList.remove("active");
+}
+
+// Funciones de la Calculadora
+function calcNum(n) {
+    haptic('light');
+    if (calcExpression === "0" && n !== ".") calcExpression = "";
+    calcExpression += n;
+    updateCalcDisplay();
+}
+
+function calcOp(op) {
+    haptic('light');
+    if (calcExpression === "") calcExpression = "0";
+    const lastChar = calcExpression.slice(-1);
+    if (["+", "-", "*", "/"].includes(lastChar)) {
+        calcExpression = calcExpression.slice(0, -1);
+    }
+    calcExpression += op;
+    updateCalcDisplay();
+}
+
+function calcClear() {
+    haptic();
+    calcExpression = "";
+    calcResult = 0;
+    updateCalcDisplay();
+}
+
+function calcBackspace() {
+    haptic('light');
+    calcExpression = calcExpression.slice(0, -1);
+    updateCalcDisplay();
+}
+
+function calcPercent() {
+    haptic('light');
+    try {
+        const val = eval(calcExpression);
+        calcExpression = String(val / 100);
+        updateCalcDisplay();
+    } catch (e) { }
+}
+
+function calcEquals() {
+    haptic('success');
+    try {
+        const original = calcExpression;
+        calcResult = eval(calcExpression);
+        // Redondear a 2 decimales
+        calcResult = Math.round(calcResult * 100) / 100;
+        
+        // Guardar en historial
+        const displayOp = original
+            .replace(/\*/g, "×")
+            .replace(/\//g, "÷")
+            .replace(/-/g, "−");
+        calcHistory.unshift({ expr: displayOp, result: calcResult });
+        if (calcHistory.length > 10) calcHistory.pop();
+        localStorage.setItem("rail_calc_history", JSON.stringify(calcHistory));
+        
+        calcExpression = String(calcResult);
+        updateCalcDisplay();
+        renderCalcHistory();
+    } catch (e) {
+        document.getElementById("calcDisplay").textContent = "Error";
+    }
+}
+
+function updateCalcDisplay() {
+    const display = document.getElementById("calcDisplay");
+    const formatted = calcExpression
+        .replace(/\*/g, "×")
+        .replace(/\//g, "÷")
+        .replace(/-/g, "−");
+    display.textContent = formatted || "0";
+}
+
+function renderCalcHistory() {
+    const list = document.getElementById("calcHistoryList");
+    if (calcHistory.length === 0) {
+        list.innerHTML = '<div style="color:#999; font-size:12px">Sin historial</div>';
+        return;
+    }
+    list.innerHTML = calcHistory.map(h => `
+        <div class="calc-history-item">
+            <span>${h.expr}</span>
+            <span class="calc-history-result">= ${h.result}</span>
+        </div>
+    `).join("");
+}
+
+function copyCalcResult() {
+    haptic('success');
+    const result = calcExpression || "0";
+    navigator.clipboard.writeText(result).then(() => {
+        alert("📋 Copiado: " + result);
+    });
+}
+
+// === COMPARADOR €/UNIDAD ===
+
+function openUnitCalculator() {
+    haptic();
+    toggleToolsFab();
+    document.getElementById("modalUnitCalc").classList.add("active");
+    renderUnitHistory();
+}
+
+function closeUnitCalculator() {
+    document.getElementById("modalUnitCalc").classList.remove("active");
+}
+
+function calculateUnitPrice() {
+    const price = parseFloat(document.getElementById("unitPrice").value);
+    const qty = parseFloat(document.getElementById("unitQty").value);
+    const unit = document.getElementById("unitType").value;
+    const resultDiv = document.getElementById("unitResult");
+    
+    if (isNaN(price) || isNaN(qty) || qty <= 0 || price <= 0) {
+        resultDiv.innerHTML = '';
+        return;
+    }
+    
+    // Convertir a unidad base (kg o L)
+    let baseQty = qty;
+    let baseUnit = unit;
+    let fractionUnit = "";
+    let fractionQty = 100;
+    
+    switch (unit) {
+        case "g":
+            baseQty = qty / 1000;
+            baseUnit = "kg";
+            fractionUnit = "100g";
+            break;
+        case "ml":
+            baseQty = qty / 1000;
+            baseUnit = "L";
+            fractionUnit = "100ml";
+            break;
+        case "cl":
+            baseQty = qty / 100;
+            baseUnit = "L";
+            fractionUnit = "100ml";
+            fractionQty = 100;
+            break;
+        case "kg":
+            fractionUnit = "100g";
+            break;
+        case "L":
+            fractionUnit = "100ml";
+            break;
+        case "ud":
+            fractionUnit = "";
+            break;
+    }
+    
+    const pricePerBase = price / baseQty;
+    const priceRounded = Math.round(pricePerBase * 100) / 100;
+    
+    let secondaryHtml = "";
+    if (fractionUnit && baseUnit !== "ud") {
+        const priceFraction = pricePerBase / 10;
+        secondaryHtml = `<div class="unit-result-secondary">📦 ${priceFraction.toFixed(2)} €/${fractionUnit}</div>`;
+    }
+    
+    resultDiv.innerHTML = `
+        <div class="unit-result-main">💰 ${priceRounded.toFixed(2)} €/${baseUnit}</div>
+        ${secondaryHtml}
+    `;
+}
+
+function copyUnitResult() {
+    haptic('success');
+    const resultDiv = document.getElementById("unitResult");
+    const mainResult = resultDiv.querySelector(".unit-result-main");
+    if (mainResult) {
+        const text = mainResult.textContent.replace("💰 ", "");
+        navigator.clipboard.writeText(text).then(() => {
+            alert("📋 Copiado: " + text);
+        });
+    }
+}
+
+function saveUnitCalc() {
+    haptic('success');
+    const price = parseFloat(document.getElementById("unitPrice").value);
+    const qty = parseFloat(document.getElementById("unitQty").value);
+    const unit = document.getElementById("unitType").value;
+    
+    if (isNaN(price) || isNaN(qty) || qty <= 0 || price <= 0) {
+        alert("Introduce datos válidos primero");
+        return;
+    }
+    
+    // Calcular precio base
+    let baseQty = qty;
+    let baseUnit = unit;
+    
+    switch (unit) {
+        case "g": baseQty = qty / 1000; baseUnit = "kg"; break;
+        case "ml": baseQty = qty / 1000; baseUnit = "L"; break;
+        case "cl": baseQty = qty / 100; baseUnit = "L"; break;
+    }
+    
+    const pricePerBase = (price / baseQty).toFixed(2);
+    
+    unitHistory.unshift({
+        desc: `${qty}${unit} × ${price.toFixed(2)}€`,
+        result: `${pricePerBase} €/${baseUnit}`
+    });
+    
+    if (unitHistory.length > 10) unitHistory.pop();
+    localStorage.setItem("rail_unit_history", JSON.stringify(unitHistory));
+    
+    renderUnitHistory();
+    
+    // Limpiar campos
+    document.getElementById("unitPrice").value = "";
+    document.getElementById("unitQty").value = "";
+    document.getElementById("unitResult").innerHTML = '';
+    
+    alert("✅ Guardado en historial");
+}
+
+function renderUnitHistory() {
+    const list = document.getElementById("unitHistoryList");
+    if (unitHistory.length === 0) {
+        list.innerHTML = '<div style="color:#999; font-size:12px">Sin historial</div>';
+        return;
+    }
+    list.innerHTML = unitHistory.map(h => `
+        <div class="unit-history-item">
+            <div class="unit-hist-desc">${h.desc}</div>
+            <div class="unit-hist-result">→ ${h.result}</div>
+        </div>
+    `).join("");
+}
+
+// Exportar funciones de herramientas al scope global
+window.toggleToolsFab = toggleToolsFab;
+window.openCalculator = openCalculator;
+window.closeCalculator = closeCalculator;
+window.calcNum = calcNum;
+window.calcOp = calcOp;
+window.calcClear = calcClear;
+window.calcBackspace = calcBackspace;
+window.calcPercent = calcPercent;
+window.calcEquals = calcEquals;
+window.copyCalcResult = copyCalcResult;
+window.openUnitCalculator = openUnitCalculator;
+window.closeUnitCalculator = closeUnitCalculator;
+window.calculateUnitPrice = calculateUnitPrice;
+window.copyUnitResult = copyUnitResult;
+window.saveUnitCalc = saveUnitCalc;

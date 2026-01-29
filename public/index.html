@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
-    <link rel="stylesheet" href="css/styles.css?v=11.15">
+    <link rel="stylesheet" href="css/styles.css?v=11.20">
 </head>
 
 <body>
@@ -135,6 +135,123 @@
 
         </div>
 
+        <!-- FAB Herramientas -->
+        <div class="tools-fab-container" id="toolsFab">
+            <div class="tools-speed-dial" id="toolsSpeedDial">
+                <button class="speed-dial-btn" onclick="openUnitCalculator()">
+                    <span class="material-icons-round">balance</span>
+                    <span class="speed-dial-label">€/Unidad</span>
+                </button>
+                <button class="speed-dial-btn" onclick="openCalculator()">
+                    <span class="material-icons-round">calculate</span>
+                    <span class="speed-dial-label">Calculadora</span>
+                </button>
+            </div>
+            <button class="tools-fab-btn" onclick="toggleToolsFab()">
+                <span class="material-icons-round" id="toolsFabIcon">build</span>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Modal Calculadora -->
+    <div id="modalCalculadora" class="modal-overlay">
+        <div class="modal-content-calc">
+            <div class="modal-header-simple">
+                <span>🧮 Calculadora</span>
+                <span class="material-icons-round modal-close-icon" onclick="closeCalculator()">close</span>
+            </div>
+            <div class="calc-display" id="calcDisplay">0</div>
+            <div class="calc-buttons">
+                <button class="calc-btn calc-clear" onclick="calcClear()">C</button>
+                <button class="calc-btn calc-op" onclick="calcBackspace()">⌫</button>
+                <button class="calc-btn calc-op" onclick="calcPercent()">%</button>
+                <button class="calc-btn calc-op" onclick="calcOp('/')">÷</button>
+                
+                <button class="calc-btn" onclick="calcNum('7')">7</button>
+                <button class="calc-btn" onclick="calcNum('8')">8</button>
+                <button class="calc-btn" onclick="calcNum('9')">9</button>
+                <button class="calc-btn calc-op" onclick="calcOp('*')">×</button>
+                
+                <button class="calc-btn" onclick="calcNum('4')">4</button>
+                <button class="calc-btn" onclick="calcNum('5')">5</button>
+                <button class="calc-btn" onclick="calcNum('6')">6</button>
+                <button class="calc-btn calc-op" onclick="calcOp('-')">−</button>
+                
+                <button class="calc-btn" onclick="calcNum('1')">1</button>
+                <button class="calc-btn" onclick="calcNum('2')">2</button>
+                <button class="calc-btn" onclick="calcNum('3')">3</button>
+                <button class="calc-btn calc-op" onclick="calcOp('+')">+</button>
+                
+                <button class="calc-btn calc-zero" onclick="calcNum('0')">0</button>
+                <button class="calc-btn" onclick="calcNum('.')">.</button>
+                <button class="calc-btn calc-equals" onclick="calcEquals()">=</button>
+            </div>
+            <div class="calc-actions">
+                <button class="calc-copy-btn" onclick="copyCalcResult()">
+                    <span class="material-icons-round">content_copy</span> Copiar
+                </button>
+            </div>
+            <div class="calc-history">
+                <div class="calc-history-title">📋 Historial</div>
+                <div id="calcHistoryList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Comparador €/Unidad -->
+    <div id="modalUnitCalc" class="modal-overlay">
+        <div class="modal-content-calc">
+            <div class="modal-header-simple" style="align-items:center">
+                <span class="material-icons-round" style="margin-right:10px; color:var(--primary); font-size:24px">balance</span>
+                <span>Comparador €/Ud</span>
+                <span class="material-icons-round modal-close-icon" onclick="closeUnitCalculator()">close</span>
+            </div>
+            <div class="unit-calc-form">
+                <div class="unit-input-group">
+                    <label>Precio (€)</label>
+                    <input type="number" id="unitPrice" step="0.01" oninput="calculateUnitPrice()">
+                </div>
+                
+                <!-- Stacked layout by CSS change on .unit-input-row -->
+                <div class="unit-input-row">
+                    <div class="unit-input-group">
+                        <label>Cantidad</label>
+                        <input type="number" id="unitQty" step="0.001" oninput="calculateUnitPrice()">
+                    </div>
+                    <div class="unit-input-group">
+                        <label>Unidad</label>
+                        <select id="unitType" onchange="calculateUnitPrice()">
+                            <optgroup label="Peso">
+                                <option value="kg">Kilogramos (kg)</option>
+                                <option value="g">Gramos (g)</option>
+                            </optgroup>
+                            <optgroup label="Volumen">
+                                <option value="L">Litros (L)</option>
+                                <option value="ml">Mililitros (ml)</option>
+                                <option value="cl">Centilitros (cl)</option>
+                            </optgroup>
+                            <optgroup label="Cantidad">
+                                <option value="ud">Unidades (ud)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="unit-result" id="unitResult"></div>
+            <div class="calc-actions">
+                <button class="calc-copy-btn" onclick="copyUnitResult()">
+                    <span class="material-icons-round">content_copy</span> Copiar
+                </button>
+                <button class="calc-save-btn" onclick="saveUnitCalc()">
+                    <span class="material-icons-round">add</span> Guardar
+                </button>
+            </div>
+            <div class="calc-history">
+                <div class="calc-history-title">📋 Historial</div>
+                <div id="unitHistoryList"></div>
+            </div>
+        </div>
     </div>
 
     <div id="v9-view-prods" class="v9-view hidden">
@@ -220,7 +337,7 @@
         }
     </script>
 
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/main.js?v=11.20"></script>
 </body>
 
 </html>
