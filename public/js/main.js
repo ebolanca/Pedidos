@@ -592,12 +592,13 @@ function v8_renderTabla() {
 
     // Si hay un input activo, no renderizamos todo de nuevo (para evitar perder el foco)
     // A MENOS que el contenedor solo tenga el "skeleton" (carga inicial)
-    if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
-        if (!wrapper.querySelector('.skeleton-row')) {
-            v8_actualizarValoresEnTabla();
-            return;
-        }
-    }
+    /* ELIMINADO BLOQUE QUE CAUSA ERROR SI HAY INPUT ACTIVO */
+    // if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
+    //     if (!wrapper.querySelector('.skeleton-row')) {
+    //         v8_actualizarValoresEnTabla();
+    //         return;
+    //     }
+    // }
 
     // Limpieza total del contenedor
     wrapper.innerHTML = "";
