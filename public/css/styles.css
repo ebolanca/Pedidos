@@ -476,7 +476,7 @@ button {
   font-family: "Inter", sans-serif;
   background: transparent;
   color: var(--text-main);
-  height: 40px;
+  height: 36px;
 }
 
 .v8-filtros-container {
@@ -499,11 +499,11 @@ button {
 
 .v8-search-box {
   position: sticky;
-  top: 4px;
+  top: 24px; /* Justo bajo debug-bar (24px) */
   z-index: 1100;
   margin-bottom: 12px;
   background: white;
-  padding: 8px 16px;
+  padding: 4px 16px; /* Más compacto */
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-xl);
   display: flex;
@@ -514,7 +514,7 @@ button {
 .v8-cat-header {
   background: #cbd5e1 !important; /* Slate 300 - Color distintivo */
   color: var(--text-main);
-  padding: 10px 16px;
+  padding: 8px 16px; /* Más compacto */
   cursor: pointer;
   font-size: 14px;
   font-weight: 700;
@@ -525,7 +525,7 @@ button {
 
   /* STICKY REINFORCED */
   position: sticky;
-  top: 54px; /* Ajustado hacia arriba (Suma debug + search compacto) */
+  top: 70px; /* 24px (debug) + 46px (search box) */
   z-index: 1000 !important;
   box-shadow: 0 4px 6px -2px rgba(0, 0, 0, 0.1);
   isolation: isolate;
@@ -730,7 +730,7 @@ button {
   bottom: 20px;
   left: 20px;
   right: 20px;
-  z-index: 100;
+  z-index: 2000; /* SUPERIOR A LAS CABECERAS (1000) */
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(16px);
   border-radius: 24px;
