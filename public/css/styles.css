@@ -493,8 +493,8 @@ button {
   background: white;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
   border: 1px solid var(--gray-200);
+  /* overflow: hidden removido para no romper sticky */
 }
 
 .v8-search-box {
@@ -713,16 +713,7 @@ button {
   background: white;
 }
 
-.v8-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--gray-100);
-  min-height: 72px;
-  transition: background 0.2s;
-  position: relative; /* Mantener para alineación interna si es necesario, pero sin z-index */
-}
+
 
 /* === BOTTOM BAR (Glassmorphism) === */
 .v8-bottom-zone {
