@@ -146,16 +146,24 @@ async function procesarImportacion() {
                  datosPorProveedor[proveedorActual] = { prod: [], resp: new Set(["Roberto"]) };
             }
 
+            const precioCSV = cols[5] ? cols[5].toString().trim() : "";
+            const productoData = {
+                nombre: nombre,
+                unidad: cols[2] || "ud",
+                responsable: resp,
+                categoria: cols[4] || "General",
+                proveedor: proveedorActual
+            };
+
+            // Solo añadimos el precio si no está vacío en el CSV, 
+            // así evitamos borrar el precio anterior si el usuario no lo puso en el Excel.
+            if (precioCSV !== "") {
+                productoData.precio = precioCSV;
+            }
+
             datosPorProveedor[proveedorActual].prod.push({
                 id: generarIdProducto(proveedorActual, nombre),
-                data: {
-                    nombre: nombre,
-                    unidad: cols[2] || "ud",
-                    responsable: resp,
-                    categoria: cols[4] || "General",
-                    precio: cols[5] ? cols[5].toString().trim() : "",
-                    proveedor: proveedorActual
-                }
+                data: productoData
             });
             datosPorProveedor[proveedorActual].resp.add(resp);
             totalProductos++;
