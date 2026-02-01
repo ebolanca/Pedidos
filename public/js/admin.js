@@ -169,51 +169,54 @@ async function procesarImportacion() {
             totalProductos++;
         }
 
-        // --- SUBIDA A FIREBASE (CORREGIDO CON BORRADO) ---
+        // --- SUBIDA A FIREBASE (GLOBAL SYNC) ---
         let batch = db.batch(); 
         let op = 0;
         
-        status.innerHTML = `Detectados <b>${Object.keys(datosPorProveedor).length} proveedores</b>.<br>Sincronizando productos...`;
+        status.innerHTML = "Sincronizando base de datos global...";
 
+        // 1. Recopilamos TODOS los IDs que vienen en el CSV para saber qué mantener
+        const todosLosIdsCSV = new Set();
+        for (const dat of Object.values(datosPorProveedor)) {
+            dat.prod.forEach(p => todosLosIdsCSV.add(p.id));
+        }
+
+        // 2. Limpieza Global: Buscamos productos en Firestore que NO estén en el CSV
+        try {
+            const snapProveedores = await db.collection("proveedores").get();
+            for (const docProv of snapProveedores.docs) {
+                const provRef = docProv.ref;
+                const snapProds = await provRef.collection("productos").get();
+                
+                for (const docProd of snapProds.docs) {
+                    // Si el producto no está en el CSV y NO es un producto manual (opcional, pero aquí borramos todo lo no listado)
+                    if (!todosLosIdsCSV.has(docProd.id)) {
+                        batch.delete(docProd.ref);
+                        op++;
+                        if (op >= 450) { await batch.commit(); batch = db.batch(); op = 0; }
+                    }
+                }
+            }
+        } catch(e) { console.error("Error en limpieza global:", e); }
+
+        // 3. Carga/Actualización de lo que viene en el CSV
         for (const [nom, dat] of Object.entries(datosPorProveedor)) {
             const provRef = db.collection("proveedores").doc(nom);
             
-            // 1. Guardamos el proveedor
+            // Guardamos el proveedor
             batch.set(provRef, { actual: new Date(), responsables: Array.from(dat.resp) }, { merge: true });
             op++;
+            if (op >= 450) { await batch.commit(); batch = db.batch(); op = 0; }
 
-            // 2. Obtener IDs del CSV para este proveedor
-            const idsEnCSV = new Set(dat.prod.map(p => p.id));
-
-            // 3. Obtener productos actuales de este proveedor para ver cuáles hay que borrar
-            try {
-                const snapActual = await provRef.collection("productos").get();
-                snapActual.forEach(doc => {
-                    if (!idsEnCSV.has(doc.id)) {
-                        // El producto está en Firebase pero NO en el CSV -> BORRAR
-                        batch.delete(provRef.collection("productos").doc(doc.id));
-                        op++;
-                        if (op >= 450) { 
-                            // No podemos hacer await batch.commit() aquí directamente de forma limpia sin romper el loop de snapActual
-                            // Pero como snapActual es local al proveedor, manejamos el commit después
-                        }
-                    }
-                });
-            } catch(e) { console.error("Error obteniendo actuales de " + nom, e); }
-
-            // 4. Guardamos/Actualizamos los productos que SI están en el CSV
+            // Guardamos sus productos
             for (const p of dat.prod) {
                 batch.set(provRef.collection("productos").doc(p.id), p.data, { merge: true });
                 op++;
-                
-                if (op >= 450) { 
-                    await batch.commit();
-                    batch = db.batch();
-                    op = 0;
-                }
+                if (op >= 450) { await batch.commit(); batch = db.batch(); op = 0; }
             }
         }
-        // Commit final de lo que quede
+
+        // Commit final
         if (op > 0) await batch.commit();
 
         status.className = "status success";
