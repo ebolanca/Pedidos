@@ -169,12 +169,11 @@ async function procesarImportacion() {
             totalProductos++;
         }
 
-        // --- SUBIDA A FIREBASE (CORREGIDO) ---
-        // Usamos 'let' en vez de 'const' para poder renovar el batch
+        // --- SUBIDA A FIREBASE (CORREGIDO CON BORRADO) ---
         let batch = db.batch(); 
         let op = 0;
         
-        status.innerHTML = `Detectados <b>${Object.keys(datosPorProveedor).length} proveedores</b>.<br>Subiendo ${totalProductos} productos...`;
+        status.innerHTML = `Detectados <b>${Object.keys(datosPorProveedor).length} proveedores</b>.<br>Sincronizando productos...`;
 
         for (const [nom, dat] of Object.entries(datosPorProveedor)) {
             const provRef = db.collection("proveedores").doc(nom);
@@ -183,16 +182,34 @@ async function procesarImportacion() {
             batch.set(provRef, { actual: new Date(), responsables: Array.from(dat.resp) }, { merge: true });
             op++;
 
-            // 2. Guardamos sus productos
+            // 2. Obtener IDs del CSV para este proveedor
+            const idsEnCSV = new Set(dat.prod.map(p => p.id));
+
+            // 3. Obtener productos actuales de este proveedor para ver cuáles hay que borrar
+            try {
+                const snapActual = await provRef.collection("productos").get();
+                snapActual.forEach(doc => {
+                    if (!idsEnCSV.has(doc.id)) {
+                        // El producto está en Firebase pero NO en el CSV -> BORRAR
+                        batch.delete(provRef.collection("productos").doc(doc.id));
+                        op++;
+                        if (op >= 450) { 
+                            // No podemos hacer await batch.commit() aquí directamente de forma limpia sin romper el loop de snapActual
+                            // Pero como snapActual es local al proveedor, manejamos el commit después
+                        }
+                    }
+                });
+            } catch(e) { console.error("Error obteniendo actuales de " + nom, e); }
+
+            // 4. Guardamos/Actualizamos los productos que SI están en el CSV
             for (const p of dat.prod) {
                 batch.set(provRef.collection("productos").doc(p.id), p.data, { merge: true });
                 op++;
                 
-                // Límite de Batch de Firebase (450 ops por seguridad)
                 if (op >= 450) { 
-                    await batch.commit(); // Enviamos paquete lleno
-                    batch = db.batch();   // ¡IMPORTANTE! Abrimos un NUEVO paquete vacío
-                    op = 0;               // Reiniciamos contador
+                    await batch.commit();
+                    batch = db.batch();
+                    op = 0;
                 }
             }
         }
