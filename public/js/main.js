@@ -1492,9 +1492,13 @@ function initVersionWatcher() {
             // Usamos la variable global correcta
             console.log(`📡 Verificando: App [${CURRENT_CLIENT_VERSION}] vs Server [${serverVersion}]`);
 
-            if (serverVersion && serverVersion !== CURRENT_CLIENT_VERSION) {
-                console.warn("⚠️ VERSIÓN ANTIGUA. ACTUALIZANDO...");
+            // SI LA VERSIÓN DEL SERVIDOR ES MAYOR -> EL CLIENTE ESTÁ OBSOLETO -> ACTUALIZAMOS
+            // (Evitamos bucles si el cliente es más nuevo que el servidor, p.ej. en desarrollo o si falla el script de sync)
+            if (serverVersion && parseFloat(serverVersion) > parseFloat(CURRENT_CLIENT_VERSION)) {
+                console.warn("⚠️ NUEVA VERSIÓN DISPONIBLE. ACTUALIZANDO...");
                 forceUpdate(serverVersion);
+            } else if (serverVersion && serverVersion !== CURRENT_CLIENT_VERSION) {
+                 console.log("ℹ️ Versión local diferente pero no obsoleta (Probablemente más nueva). No se fuerza recarga.");
             }
         }
     });
