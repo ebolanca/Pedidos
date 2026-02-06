@@ -592,13 +592,14 @@ function v8_renderTabla() {
 
     // Si hay un input activo, no renderizamos todo de nuevo (para evitar perder el foco)
     // A MENOS que el contenedor solo tenga el "skeleton" (carga inicial)
-    /* ELIMINADO BLOQUE QUE CAUSA ERROR SI HAY INPUT ACTIVO */
-    // if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
-    //     if (!wrapper.querySelector('.skeleton-row')) {
-    //         v8_actualizarValoresEnTabla();
-    //         return;
-    //     }
-    // }
+    // Si hay un input activo, no renderizamos todo de nuevo (para evitar perder el foco)
+    // A MENOS que el contenedor solo tenga el "skeleton" (carga inicial)
+    if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.classList.contains('v8-qty-simple')) {
+        if (!wrapper.querySelector('.skeleton-row')) {
+            v8_actualizarValoresEnTabla();
+            return;
+        }
+    }
 
     // Limpieza total del contenedor
     wrapper.innerHTML = "";
@@ -799,27 +800,25 @@ function v8_renderTabla() {
 
             } else {
                 // SI ES TRABAJADOR
+                // Usamos estilo simple (fila única) para evitar problemas de espacio vertical excesivo y datos innecesarios
+                row.className = rowClass + " v8-row-simple";
+
                 row.innerHTML = `
-                    <div class="v8-row-main">
-                        <div class="v8-prod-info">
-                            <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
-                            <div class="v8-text-col">
-                                <div class="v8-name-row" style="display:flex; align-items:center">
-                                    <div class="v8-prod-name">${p.nombre}</div>
-                                    <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
-                                </div>
+                    <div class="v8-prod-info">
+                        <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
+                        <div class="v8-text-col">
+                            <div class="v8-name-row" style="display:flex; align-items:center">
+                                <div class="v8-prod-name">${p.nombre}</div>
+                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
+                            </div>
+                            <div style="display:flex; align-items:center; margin-top:4px;">
+                                <span class="v8-prod-unit">${p.unidad || ''}</span>
                             </div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px">
-                            ${sugHtml}
-                            <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
-                                placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
-                        </div>
                     </div>
-                    <div class="v8-row-details">
-                        <span class="v8-prod-unit">${p.unidad || ''}</span>
-                        ${rowTotalHtml}
-                    </div>
+                    ${sugHtml}
+                    <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                           placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
                 `;
             }
 

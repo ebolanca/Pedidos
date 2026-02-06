@@ -3,7 +3,7 @@
 // Variables de configuración global
 
 // Versión del cliente (Actualizar en cada despliegue)
-export const CURRENT_CLIENT_VERSION = "11.29";
+export const CURRENT_CLIENT_VERSION = "11.30";
 
 // Constantes de UI
 export const UI_CONSTANTS = {

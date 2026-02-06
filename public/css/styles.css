@@ -587,6 +587,13 @@ button {
   gap: 8px;
 }
 
+.v8-row-simple {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0 !important;
+}
+
 .v8-row-main {
   display: flex;
   align-items: center;
