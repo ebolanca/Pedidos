@@ -763,70 +763,63 @@ function v8_renderTabla() {
                     }
                 }
 
-                htmlPrecio = `<div style="display:flex; align-items:center; margin-left:8px;">
-                    <input type="number" value="${pesoVal}" 
-                        placeholder="Kg/Ud"
-                        class="v8-input-sm v8-input-weight"
-                        id="wei_${p.id}"
-                        onchange="v8_actualizarPesoProducto('${p.id}', this.value)"
-                        onclick="event.stopPropagation()">
-                    
-                    <div style="display:flex; flex-direction:column; align-items:end">
-                        <div style="display:flex; align-items:center">
-                            <span style="color:var(--success); font-size:12px; margin-right:1px">€</span>
-                            <input type="text" value="${precioBaseStr}" 
-                                placeholder="Base"
-                                class="v8-input-sm v8-input-price"
-                                id="prc_${p.id}"
-                                onchange="v8_actualizarPrecioProducto('${p.id}', this.value)"
-                                onclick="event.stopPropagation()">
-                        </div>
-                        ${labelPrecioFinal}
-                    </div>
-
-                    ${semaforoHtml}
-                    ${historyIconHtml}
-                    ${rowTotalHtml}
-                </div>`;
-
                 row.innerHTML = `
-                    <div class="v8-prod-info">
-                        <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
-                        <div class="v8-text-col">
-                            <div class="v8-name-row" style="display:flex; align-items:center">
-                                <div class="v8-prod-name">${p.nombre}</div>
-                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
-                                ${p.esManual ? '' : ivaSelectHtml} 
-                            </div>
-                            <div style="display:flex; align-items:center; margin-top:4px;">
-                                <span class="v8-prod-unit">${p.unidad || ''}</span>
-                                ${htmlPrecio}
+                    <div class="v8-row-main">
+                        <div class="v8-prod-info">
+                            <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
+                            <div class="v8-text-col">
+                                <div class="v8-name-row" style="display:flex; align-items:center">
+                                    <div class="v8-prod-name">${p.nombre}</div>
+                                    <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
+                                </div>
                             </div>
                         </div>
+                        <div style="display:flex; align-items:center; gap:8px">
+                            ${sugHtml}
+                            <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                                placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                        </div>
                     </div>
-                    ${sugHtml}
-                    <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
-                           placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    <div class="v8-row-details">
+                        <span class="v8-prod-unit">${p.unidad || ''}</span>
+                        <div class="v8-admin-details-area">
+                            ${p.esManual ? '' : ivaSelectHtml}
+                            <input type="number" value="${pesoVal}" placeholder="Kg/Ud" class="v8-input-sm v8-input-weight" id="wei_${p.id}" onchange="v8_actualizarPesoProducto('${p.id}', this.value)" onclick="event.stopPropagation()">
+                            <div style="display:flex; align-items:center">
+                                <span style="color:var(--success); font-size:12px; margin-right:1px">€</span>
+                                <input type="text" value="${precioBaseStr}" placeholder="Base" class="v8-input-sm v8-input-price" id="prc_${p.id}" onchange="v8_actualizarPrecioProducto('${p.id}', this.value)" onclick="event.stopPropagation()">
+                            </div>
+                            ${labelPrecioFinal}
+                            ${semaforoHtml}
+                            ${historyIconHtml}
+                            ${rowTotalHtml}
+                        </div>
+                    </div>
                 `;
 
             } else {
                 // SI ES TRABAJADOR
                 row.innerHTML = `
-                    <div class="v8-prod-info">
-                        <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
-                        <div class="v8-text-col">
-                            <div class="v8-name-row" style="display:flex; align-items:center">
-                                <div class="v8-prod-name">${p.nombre}</div>
-                                <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
-                            </div>
-                            <div style="display:flex; align-items:center; margin-top:4px;">
-                                <span class="v8-prod-unit">${p.unidad || ''}</span>
+                    <div class="v8-row-main">
+                        <div class="v8-prod-info">
+                            <span class="v8-star ${isFav ? 'fav' : ''}" onclick="toggleFav('${p.id}')">★</span>
+                            <div class="v8-text-col">
+                                <div class="v8-name-row" style="display:flex; align-items:center">
+                                    <div class="v8-prod-name">${p.nombre}</div>
+                                    <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
+                                </div>
                             </div>
                         </div>
+                        <div style="display:flex; align-items:center; gap:8px">
+                            ${sugHtml}
+                            <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                                placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                        </div>
                     </div>
-                    ${sugHtml}
-                    <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
-                           placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    <div class="v8-row-details">
+                        <span class="v8-prod-unit">${p.unidad || ''}</span>
+                        ${rowTotalHtml}
+                    </div>
                 `;
             }
 
