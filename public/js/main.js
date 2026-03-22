@@ -33,6 +33,7 @@ let v9_checkedIds = new Set();
 let currentHistoryPedido = null;
 let v9_sortMode = 'alpha';
 let currentIVAProduct = null;
+let v8_cat_status = {};
 
 
 // --- FUNCIONES UTILITARIAS ---
@@ -686,9 +687,14 @@ function v8_renderTabla() {
 
     catKeys.forEach(cat => {
         const cid = cat.replace(/\W/g, '_');
-        const isExpanded = v8_expanded || searchText !== "";
+        let isExpanded = v8_expanded || searchText !== "";
+        if (searchText === "" && v8_cat_status[cid] !== undefined) {
+            isExpanded = v8_cat_status[cid];
+        }
+
         const header = document.createElement("div");
-        header.className = "v8-cat-header";
+        header.className = "v8-cat-header" + (!isExpanded ? " collapsed" : "");
+        header.id = `head_${cid}`;
         header.innerHTML = `<span>${cat}</span>`;
         header.onclick = () => v8_toggleCat(cid);
         wrapper.appendChild(header);
@@ -829,7 +835,21 @@ function v8_renderTabla() {
     document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
 }
 
-function v8_toggleCat(cid) { const el = document.querySelector(`.cat-group-${cid}`); if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none'; }
+function v8_toggleCat(cid) {
+    const el = document.querySelector(`.cat-group-${cid}`);
+    const head = document.getElementById(`head_${cid}`);
+    if (el) {
+        if (el.style.display === 'none') {
+            el.style.display = 'block';
+            v8_cat_status[cid] = true;
+            if (head) head.classList.remove('collapsed');
+        } else {
+            el.style.display = 'none';
+            v8_cat_status[cid] = false;
+            if (head) head.classList.add('collapsed');
+        }
+    }
+}
 function v8_toggleFiltro(f) { haptic('light'); v8_filter = (v8_filter === f) ? 'todos' : f; v8_renderTabla(); }
 function v8_toggleExpansion() { haptic('light'); v8_expanded = !v8_expanded; v8_renderTabla(); }
 
@@ -1401,11 +1421,21 @@ function v9_renderListaLector() {
     if (lista.length === 0) html = "<div style='text-align:center;padding:20px;color:#999'>Lista vacía.</div>";
 
     let lastCat = "";
+    let insideGroup = false;
 
     lista.forEach(item => {
         if (v9_sortMode === 'category' && item.categoria !== lastCat && !item.checked) {
-            html += `<div class="v8-cat-header" style="background:#eee; margin-top:10px; font-size:12px">${item.categoria}</div>`;
+            if (insideGroup) {
+                html += `</div>`;
+            }
+            const cid = item.categoria.replace(/\W/g, '_');
+            html += `<div class="v8-cat-header" style="background:#eee; margin-top:10px; font-size:12px" onclick="v9_toggleCat('${cid}')">${item.categoria}</div>`;
+            html += `<div id="v9-cat-grp-${cid}" style="display:block">`;
             lastCat = item.categoria;
+            insideGroup = true;
+        } else if (item.checked && insideGroup) {
+            html += `</div>`;
+            insideGroup = false;
         }
 
         const checkedClass = item.checked ? "checked" : "";
@@ -1454,8 +1484,20 @@ function v9_renderListaLector() {
         </div>`;
     });
 
+    if (insideGroup) {
+        html += `</div>`;
+    }
+
     document.getElementById("v9-prod-list").innerHTML = html;
 }
+
+window.v9_toggleCat = function(cid) {
+    if (typeof haptic === 'function') haptic('light'); else if (window.haptic) window.haptic('light');
+    const el = document.getElementById(`v9-cat-grp-${cid}`);
+    if (el) {
+        el.style.display = (el.style.display === 'none') ? 'block' : 'none';
+    }
+};
 
 function v9_toggleCheck(id) {
     haptic();
@@ -1472,7 +1514,7 @@ async function v9_borrarPedidoActual() {
         await db.collection("borradores").doc(currentLectorProv).delete();
         v9_volverInicio();
         v9_cargarProveedoresResumen();
-        v9_cargarHistorialDashboard();
+        v8_cargarDashboardHistorial();
     } catch (e) { alert("Error: " + e.message); }
 }
 

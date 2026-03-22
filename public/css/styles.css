@@ -577,6 +577,10 @@ button {
   transition: transform 0.2s;
 }
 
+.v8-cat-header.collapsed::after {
+  transform: rotate(-90deg);
+}
+
 .v8-row {
   display: flex;
   flex-direction: column;
@@ -1286,7 +1290,7 @@ input[type="text"] {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 1000;
+  z-index: 2100;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
