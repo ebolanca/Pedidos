@@ -7,6 +7,7 @@ import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from 
 import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.24';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
 import { db, auth } from './modules/firebase-init.js';
+import { ejecutarMantenimientoPedidos } from './modules/maintenance.js';
 
 
 
@@ -90,6 +91,11 @@ function iniciarApp() {
             initVersionWatcher();
 
             initV8_GestionMode();
+
+            // --- MANTENIMIENTO (Solo Admin) ---
+            if (userRole === 'admin') {
+                setTimeout(() => ejecutarMantenimientoPedidos(30), 5000); // Retraso para no saturar inicio
+            }
 
         } else {
             redirectToLogin();
@@ -196,71 +202,78 @@ function v8_cargarDashboardHistorial() {
     
     dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando...</div>";
 
-    // Cancelamos suscripción previa si existe
     if (v8_dash_unsub) { v8_dash_unsub(); v8_dash_unsub = null; }
 
     let q = db.collection("pedidos");
-
-    // 1. Filtro de seguridad
     if (userRole === 'worker') {
         q = q.where("email", "==", currentUser);
     }
 
-    // 2. ORDENAR POR FECHA
-    q = q.orderBy("fecha", "desc").limit(12);
+    // 2. ACTIVAR ESCUCHA
+    // NOTA: Si esta consulta falla (ej. por datos corruptos o falta de campo fecha),
+    // usaremos un fallback automático.
+    v8_dash_unsub = q.orderBy("fecha", "desc").limit(12).onSnapshot(snap => {
+        v8_renderDashResults(snap, dashList);
+    }, err => {
+        console.warn("⚠️ Fallo en consulta ordenada, intentando fallback...", err);
+        // Fallback: Carga sin ordenación (Firestore devolverá por ID si no hay índice)
+        v8_dash_unsub = q.limit(12).onSnapshot(snap => {
+            v8_renderDashResults(snap, dashList, true);
+        }, err2 => {
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error crítico de conexión.</div>";
+        });
+    });
+}
 
-    // 3. ACTIVAR ESCUCHA EN TIEMPO REAL
-    v8_dash_unsub = q.onSnapshot(snap => {
-        if (snap.empty) {
-            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
-            return;
+function v8_renderDashResults(snap, dashList, isFallback = false) {
+    // Indicador siempre visible
+    const isFromCache = snap.metadata.fromCache;
+    const cacheLabel = isFromCache ? ' <span style="font-size:9px; color:orange">(offline)</span>' : ' <span style="font-size:9px; color:green">(live)</span>';
+    const fallbackLabel = isFallback ? ' <span style="font-size:9px; color:red">(fallback)</span>' : '';
+    
+    const titleEl = document.querySelector(".v50-dash-title");
+    if (titleEl) titleEl.innerHTML = `Últimos Pedidos ${cacheLabel}${fallbackLabel}`;
+
+    if (snap.empty) {
+        dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
+        return;
+    }
+
+    let html = "";
+    snap.forEach(doc => {
+        const d = doc.data();
+        // Fallback para fecha si no existe el campo o no es Timestamp
+        let dateObj = new Date();
+        if (d.fecha && d.fecha.toDate) dateObj = d.fecha.toDate();
+        else if (d.fecha_corta) dateObj = new Date(d.fecha_corta);
+
+        const fechaStr = dateObj.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' });
+        const horaStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const esBorrado = d.estado === "borrado";
+        
+        const claseCard = esBorrado ? "v50-hist-card deleted" : "v50-hist-card";
+        const claseStatus = esBorrado ? "v50-hist-status deleted" : "v50-hist-status";
+        const textoStatus = esBorrado ? "CANCELADO" : "Enviado ✅";
+
+        let userLine = "";
+        if (userRole === 'admin' && !esBorrado) {
+            userLine = `<div class="v50-hist-user">👤 ${d.usuario || (d.email || 'Admin')}</div>`;
         }
 
-        // Verificamos si los datos vienen de la caché
-        const isFromCache = snap.metadata.fromCache;
-        const cacheLabel = isFromCache ? ' <span style="font-size:9px; color:orange">(offline)</span>' : ' <span style="font-size:9px; color:green">(live)</span>';
-        
-        const titleEl = document.querySelector(".v50-dash-title");
-        if (titleEl) titleEl.innerHTML = `Últimos Pedidos ${cacheLabel}`;
-
-        let html = "";
-        snap.forEach(doc => {
-            const d = doc.data();
-            const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
-            const fechaStr = f.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' });
-            const horaStr = f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const esBorrado = d.estado === "borrado";
-            
-            const claseCard = esBorrado ? "v50-hist-card deleted" : "v50-hist-card";
-            const claseStatus = esBorrado ? "v50-hist-status deleted" : "v50-hist-status";
-            const textoStatus = esBorrado ? "CANCELADO" : "Enviado ✅";
-
-            let userLine = "";
-            if (userRole === 'admin' && !esBorrado) {
-                userLine = `<div class="v50-hist-user">👤 ${d.usuario}</div>`;
-            }
-
-            let btnBorrarHtml = `
-                  <div class="hist-delete-btn" onclick="event.stopPropagation(); v8_eliminarPedidoHistorial('${d.id_unico}', true)">
-                     <span class="material-icons-round">delete</span>
-                  </div>`;
-
-            html += `
-            <div class="${claseCard}">
-                <div class="v50-hist-left" onclick="v8_verDetalleDesdeDashboard('${d.id_unico}')">
-                    <div class="v50-hist-date">📅 ${fechaStr} ${horaStr}</div>
-                    ${userLine}
-                    <div class="v50-hist-prov">${d.proveedor}</div>
-                </div>
-                <div class="${claseStatus}">${textoStatus}</div>
-                ${btnBorrarHtml}
-            </div>`;
-        });
-        dashList.innerHTML = html;
-    }, err => {
-        console.error("Error historial:", err);
-        dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error de conexión al historial.</div>";
+        html += `
+        <div class="${claseCard}">
+            <div class="v50-hist-left" onclick="v8_verDetalleDesdeDashboard('${d.id_unico}')">
+                <div class="v50-hist-date">📅 ${fechaStr} ${horaStr}</div>
+                ${userLine}
+                <div class="v50-hist-prov">${d.proveedor}</div>
+            </div>
+            <div class="${claseStatus}">${textoStatus}</div>
+            <div class="hist-delete-btn" onclick="event.stopPropagation(); v8_eliminarPedidoHistorial('${d.id_unico}', true)">
+                <span class="material-icons-round">delete</span>
+            </div>
+        </div>`;
     });
+    dashList.innerHTML = html;
 }
 
 function v8_verDetalleDesdeDashboard(idUnico) {
@@ -938,7 +951,8 @@ function guardarPedidoFinal() {
 
     db.collection("pedidos").doc(id).set({
         id_unico: id, usuario: userName, email: currentUser, proveedor: currentProv,
-        fecha: new Date(), fecha_corta: d, estado: "enviado", items: cart, notas: cartNotes
+        fecha: firebase.firestore.FieldValue.serverTimestamp(), 
+        fecha_corta: d, estado: "enviado", items: cart, notas: cartNotes
     }, { merge: true }).then(() => {
         if (!navigator.onLine) alert("📴 Guardado OFFLINE. Se subirá al recuperar conexión.");
         else alert("✅ Guardado en Historial.\nRECUERDA: Borra los productos cuando llegue la mercancía.");
