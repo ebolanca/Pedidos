@@ -26,7 +26,7 @@ let currentUser, userRole, userName, currentProv, currentLectorProv;
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
 let suggestions = {};
 let v8_filter = 'todos', v8_expanded = true;
-let v8_unsub = null;
+let v8_unsub = null, v8_dash_unsub = null;
 let writeDebounceTimer = null;
 let v9_currentData = {};
 let v9_checkedIds = new Set();
@@ -192,34 +192,45 @@ function v8_cargarProveedores() {
 
 function v8_cargarDashboardHistorial() {
     const dashList = document.getElementById("v8-dash-list");
+    if (!dashList) return;
+    
     dashList.innerHTML = "<div style='text-align:center;padding:10px'>Cargando...</div>";
+
+    // Cancelamos suscripción previa si existe
+    if (v8_dash_unsub) { v8_dash_unsub(); v8_dash_unsub = null; }
 
     let q = db.collection("pedidos");
 
-    // 1. Filtro de seguridad (si es trabajador, solo ve los suyos)
+    // 1. Filtro de seguridad
     if (userRole === 'worker') {
         q = q.where("email", "==", currentUser);
     }
 
-    // 2. ORDENAR POR FECHA (IMPORTANTE: Esto es lo que arregla que no salgan los nuevos)
-    q = q.orderBy("fecha", "desc");
+    // 2. ORDENAR POR FECHA
+    q = q.orderBy("fecha", "desc").limit(12);
 
-    // 3. LIMITAR A 10 (Para que la lista no sea kilométrica)
-    q.limit(10).get().then(snap => {
+    // 3. ACTIVAR ESCUCHA EN TIEMPO REAL
+    v8_dash_unsub = q.onSnapshot(snap => {
         if (snap.empty) {
-            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:999'>No hay actividad reciente.</div>";
+            dashList.innerHTML = "<div style='text-align:center;padding:15px;color:#999'>No hay actividad reciente.</div>";
             return;
         }
 
-        let pedidos = [];
-        snap.forEach(doc => pedidos.push(doc.data()));
+        // Verificamos si los datos vienen de la caché
+        const isFromCache = snap.metadata.fromCache;
+        const cacheLabel = isFromCache ? ' <span style="font-size:9px; color:orange">(offline)</span>' : ' <span style="font-size:9px; color:green">(live)</span>';
+        
+        const titleEl = document.querySelector(".v50-dash-title");
+        if (titleEl) titleEl.innerHTML = `Últimos Pedidos ${cacheLabel}`;
 
         let html = "";
-        pedidos.forEach(d => {
+        snap.forEach(doc => {
+            const d = doc.data();
             const f = d.fecha && d.fecha.toDate ? d.fecha.toDate() : new Date();
             const fechaStr = f.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' });
             const horaStr = f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const esBorrado = d.estado === "borrado";
+            
             const claseCard = esBorrado ? "v50-hist-card deleted" : "v50-hist-card";
             const claseStatus = esBorrado ? "v50-hist-status deleted" : "v50-hist-status";
             const textoStatus = esBorrado ? "CANCELADO" : "Enviado ✅";
@@ -246,11 +257,9 @@ function v8_cargarDashboardHistorial() {
             </div>`;
         });
         dashList.innerHTML = html;
-    }).catch(e => {
-        console.error(e);
-        // NOTA IMPORTANTE: Si eres trabajador, es posible que la consola te pida crear un índice.
-        // Si no carga, abre la consola (F12) y haz clic en el enlace que te da Firebase.
-        dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error cargando historial (Revisa índices).</div>";
+    }, err => {
+        console.error("Error historial:", err);
+        dashList.innerHTML = "<div style='text-align:center;padding:15px;color:red'>Error de conexión al historial.</div>";
     });
 }
 
@@ -1978,6 +1987,36 @@ function renderUnitHistory() {
     `).join("");
 }
 
+// --- UTILIDADES DE MANTENIMIENTO ---
+async function v8_limpiarCacheSystem() {
+    if(!confirm("⚠️ ¿BORRAR TODA LA CACHÉ Y DATOS LOCALES?\n\nEsto solucionará problemas de sincronización en este PC, pero tendrás que volver a iniciar sesión.")) return;
+    
+    try {
+        // 1. Desregistrar Service Workers
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for(let r of regs) await r.unregister();
+        }
+        
+        // 2. Limpiar Caché de la API de Caches
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            for(let k of keys) await caches.delete(k);
+        }
+
+        // 3. Finalizar Firestore y limpiar persistencia
+        // (Intentamos hacerlo elegante)
+        await db.terminate();
+        await db.clearPersistence();
+
+        alert("✅ Caché técnica borrada. Reiniciando App...");
+        window.location.reload(true);
+    } catch (e) {
+        alert("Error limpiando: " + e.message);
+        window.location.reload(true);
+    }
+}
+
 // Exportar funciones de herramientas al scope global
 window.toggleToolsFab = toggleToolsFab;
 window.openCalculator = openCalculator;
@@ -1994,3 +2033,4 @@ window.closeUnitCalculator = closeUnitCalculator;
 window.calculateUnitPrice = calculateUnitPrice;
 window.copyUnitResult = copyUnitResult;
 window.saveUnitCalc = saveUnitCalc;
+window.v8_limpiarCacheSystem = v8_limpiarCacheSystem;
