@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js'; // Config privada existente
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.37';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.38';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
 import { db, auth } from './modules/firebase-init.js';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js';
@@ -1748,6 +1748,7 @@ function toggleToolsFab() {
     haptic();
     const fab = document.getElementById("toolsFab");
     const icon = document.getElementById("toolsFabIcon");
+    if (!fab || !icon) return;
     fab.classList.toggle("open");
     icon.textContent = fab.classList.contains("open") ? "close" : "build";
 }

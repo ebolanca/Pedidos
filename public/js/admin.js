@@ -68,7 +68,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.37";
+        const CLIENT_VERSION = "11.38";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -87,6 +87,12 @@ async function inicializarGestor() {
 }
 
 async function cargarDatos() {
+    // Preservar valores de filtros antes de vaciar/recargar
+    const filterProv = document.getElementById("filter-proveedor");
+    const filterCat = document.getElementById("filter-categoria");
+    const prevFilterProvVal = filterProv ? filterProv.value : "";
+    const prevFilterCatVal = filterCat ? filterCat.value : "";
+
     // Mostrar cargando
     document.getElementById("prods-loading").style.display = "flex";
     document.getElementById("prods-grid").style.display = "none";
@@ -108,13 +114,14 @@ async function cargarDatos() {
         allSuppliers.sort((a, b) => a.id.localeCompare(b.id));
 
         // Llenar select de proveedores en los filtros
-        const filterProv = document.getElementById("filter-proveedor");
         const prodProvSelect = document.getElementById("prod-supplier");
         if (filterProv) {
             filterProv.innerHTML = '<option value="">-- Todos los Proveedores --</option>';
             allSuppliers.forEach(s => {
                 filterProv.innerHTML += `<option value="${s.id}">${s.id}</option>`;
             });
+            // Restaurar filtro
+            filterProv.value = prevFilterProvVal;
         }
         if (prodProvSelect) {
             prodProvSelect.innerHTML = '<option value="">-- Selecciona Proveedor --</option>';
@@ -145,12 +152,13 @@ async function cargarDatos() {
         uniqueCategories.sort();
 
         // Llenar select de categorías en los filtros
-        const filterCat = document.getElementById("filter-categoria");
         if (filterCat) {
             filterCat.innerHTML = '<option value="">-- Todas las Categorías --</option>';
             uniqueCategories.forEach(c => {
                 filterCat.innerHTML += `<option value="${c}">${c}</option>`;
             });
+            // Restaurar filtro
+            filterCat.value = prevFilterCatVal;
         }
 
         // Ocultar spinners y renderizar
