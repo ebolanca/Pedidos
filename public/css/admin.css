@@ -674,3 +674,113 @@ body {
     margin-bottom: 12px;
     color: #cbd5e1;
 }
+
+/* --- ACCIONES EN LOTE (BULK ACTIONS) --- */
+.bulk-actions-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    right: 24px;
+    max-width: 952px;
+    margin: 0 auto;
+    background: #0f172a;
+    color: white;
+    padding: 14px 20px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg), 0 20px 25px -5px rgb(0 0 0 / 0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    z-index: 999;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.bulk-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.bulk-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-bulk {
+    border: none;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+}
+
+.btn-bulk-edit {
+    background: var(--primary);
+    color: white;
+}
+.btn-bulk-edit:hover {
+    background: var(--primary-hover);
+}
+
+.btn-bulk-delete {
+    background: var(--danger);
+    color: white;
+}
+.btn-bulk-delete:hover {
+    background: var(--danger-hover);
+}
+
+.btn-bulk-cancel {
+    background: #334155;
+    color: #cbd5e1;
+}
+.btn-bulk-cancel:hover {
+    background: #475569;
+    color: white;
+}
+
+/* Estado de tarjeta seleccionada */
+.product-card.selected {
+    border-color: var(--primary);
+    background-color: var(--primary-light);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15), var(--shadow);
+}
+
+.product-card.selected .card-title {
+    color: #1e40af;
+}
+
+/* Checkbox visual en tarjetas */
+.card-checkbox-icon {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 24px;
+    transition: var(--transition);
+}
+
+.product-card.selected .card-checkbox-icon {
+    color: var(--primary);
+}
+
+/* Modificadores al FAB cuando hay selección masiva */
+body.has-bulk-bar .fab-btn {
+    bottom: 96px; /* Desplazar hacia arriba para no tapar */
+}

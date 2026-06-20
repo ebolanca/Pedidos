@@ -12,6 +12,8 @@ let allSuppliers = [];
 let uniqueCategories = [];
 let uniqueResponsibles = [];
 let activeTab = 'productos';
+let selectionMode = false;
+let selectedProductIds = new Set();
 
 // --- 1. CONTROL DE ACCESO (AUTENTICACIÓN) ---
 auth.onAuthStateChanged(async user => {
@@ -66,7 +68,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.35";
+        const CLIENT_VERSION = "11.36";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -196,43 +198,78 @@ function renderProductos() {
 
     filtered.forEach(p => {
         const card = document.createElement("div");
-        card.className = "product-card";
+        
+        const isSelected = selectedProductIds.has(p.id);
+        if (isSelected) {
+            card.className = "product-card selected";
+        } else {
+            card.className = "product-card";
+        }
 
         const precioStr = p.precio ? `${parseFloat(p.precio).toFixed(2)}€` : 'Sin Precio';
         const ivaStr = p.iva ? `(IVA ${p.iva}%)` : '';
 
-        card.innerHTML = `
-            <button class="btn-delete-card" style="position: absolute; top: 12px; right: 12px; border: none; background: #fee2e2; color: #ef4444; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer;" onclick="event.stopPropagation(); borrarProductoConfirmar('${p.id}', '${p.supplierId}', '${p.nombre.replace(/'/g, "\\'")}')">
-                <span class="material-icons-round" style="font-size: 18px">delete</span>
-            </button>
-            <div class="card-header" onclick="abrirModalProducto('${p.id}')" style="cursor: pointer;">
-                <h4 class="card-title">${p.nombre}</h4>
-                <div class="card-subtitle">${p.supplierId}</div>
-            </div>
-            <div class="card-details" onclick="abrirModalProducto('${p.id}')" style="cursor: pointer; flex-grow: 1;">
-                <span class="badge badge-blue">
-                    <span class="material-icons-round" style="font-size: 12px">label</span>
-                    ${p.categoria || 'General'}
-                </span>
-                <span class="badge badge-orange">
-                    <span class="material-icons-round" style="font-size: 12px">person</span>
-                    ${p.responsable || 'Todos'}
-                </span>
-                <span class="badge badge-gray">
-                    <span class="material-icons-round" style="font-size: 12px">inventory</span>
-                    1 ${p.unidad || 'ud'}
-                </span>
-                <span class="badge badge-green">
-                    <span class="material-icons-round" style="font-size: 12px">payments</span>
-                    ${precioStr} ${ivaStr}
-                </span>
-            </div>
-            <div class="card-actions">
-                <button class="btn-card-action btn-edit" onclick="abrirModalProducto('${p.id}')">
-                    <span class="material-icons-round">edit</span> Editar
+        if (selectionMode) {
+            const checkIcon = isSelected ? 'check_box' : 'check_box_outline_blank';
+            card.innerHTML = `
+                <span class="material-icons-round card-checkbox-icon" onclick="event.stopPropagation(); toggleSelectProduct('${p.id}')">${checkIcon}</span>
+                <div class="card-header" onclick="toggleSelectProduct('${p.id}')" style="cursor: pointer;">
+                    <h4 class="card-title" style="padding-right: 28px;">${p.nombre}</h4>
+                    <div class="card-subtitle">${p.supplierId}</div>
+                </div>
+                <div class="card-details" onclick="toggleSelectProduct('${p.id}')" style="cursor: pointer; flex-grow: 1;">
+                    <span class="badge badge-blue">
+                        <span class="material-icons-round" style="font-size: 12px">label</span>
+                        ${p.categoria || 'General'}
+                    </span>
+                    <span class="badge badge-orange">
+                        <span class="material-icons-round" style="font-size: 12px">person</span>
+                        ${p.responsable || 'Todos'}
+                    </span>
+                    <span class="badge badge-gray">
+                        <span class="material-icons-round" style="font-size: 12px">inventory</span>
+                        1 ${p.unidad || 'ud'}
+                    </span>
+                    <span class="badge badge-green">
+                        <span class="material-icons-round" style="font-size: 12px">payments</span>
+                        ${precioStr} ${ivaStr}
+                    </span>
+                </div>
+            `;
+        } else {
+            card.innerHTML = `
+                <button class="btn-delete-card" style="position: absolute; top: 12px; right: 12px; border: none; background: #fee2e2; color: #ef4444; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer;" onclick="event.stopPropagation(); borrarProductoConfirmar('${p.id}', '${p.supplierId}', '${p.nombre.replace(/'/g, "\\'")}')">
+                    <span class="material-icons-round" style="font-size: 18px">delete</span>
                 </button>
-            </div>
-        `;
+                <div class="card-header" onclick="abrirModalProducto('${p.id}')" style="cursor: pointer;">
+                    <h4 class="card-title">${p.nombre}</h4>
+                    <div class="card-subtitle">${p.supplierId}</div>
+                </div>
+                <div class="card-details" onclick="abrirModalProducto('${p.id}')" style="cursor: pointer; flex-grow: 1;">
+                    <span class="badge badge-blue">
+                        <span class="material-icons-round" style="font-size: 12px">label</span>
+                        ${p.categoria || 'General'}
+                    </span>
+                    <span class="badge badge-orange">
+                        <span class="material-icons-round" style="font-size: 12px">person</span>
+                        ${p.responsable || 'Todos'}
+                    </span>
+                    <span class="badge badge-gray">
+                        <span class="material-icons-round" style="font-size: 12px">inventory</span>
+                        1 ${p.unidad || 'ud'}
+                    </span>
+                    <span class="badge badge-green">
+                        <span class="material-icons-round" style="font-size: 12px">payments</span>
+                        ${precioStr} ${ivaStr}
+                    </span>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-card-action btn-edit" onclick="abrirModalProducto('${p.id}')">
+                        <span class="material-icons-round">edit</span> Editar
+                    </button>
+                </div>
+            `;
+        }
         grid.appendChild(card);
     });
 }
@@ -839,6 +876,224 @@ async function procesarImportacion() {
     }
 }
 
+// --- 9. ACCIONES MASIVAS (BULK ACTIONS LOGIC) ---
+
+function toggleSelectionMode(forceValue) {
+    if (typeof forceValue === "boolean") {
+        selectionMode = forceValue;
+    } else {
+        selectionMode = !selectionMode;
+    }
+
+    const btn = document.getElementById("btn-toggle-select-mode");
+    const icon = document.getElementById("icon-toggle-select-mode");
+    const lbl = document.getElementById("lbl-toggle-select-mode");
+    const bulkBar = document.getElementById("bulk-actions-bar");
+
+    selectedProductIds.clear();
+
+    if (selectionMode) {
+        if (btn) {
+            btn.style.borderColor = "var(--primary)";
+            btn.style.background = "var(--primary-light)";
+            btn.style.color = "var(--primary)";
+        }
+        if (icon) {
+            icon.innerText = "check_box";
+            icon.style.color = "var(--primary)";
+        }
+        if (lbl) lbl.innerText = "Cancelar";
+        if (bulkBar) bulkBar.style.display = "flex";
+        document.body.classList.add("has-bulk-bar");
+        document.getElementById("bulk-selected-count").innerText = "0 seleccionados";
+    } else {
+        if (btn) {
+            btn.style.borderColor = "var(--border)";
+            btn.style.background = "var(--bg-card)";
+            btn.style.color = "var(--text-main)";
+        }
+        if (icon) {
+            icon.innerText = "check_box_outline_blank";
+            icon.style.color = "var(--text-muted)";
+        }
+        if (lbl) lbl.innerText = "Seleccionar";
+        if (bulkBar) bulkBar.style.display = "none";
+        document.body.classList.remove("has-bulk-bar");
+    }
+
+    renderProductos();
+}
+
+function toggleSelectProduct(id) {
+    if (selectedProductIds.has(id)) {
+        selectedProductIds.delete(id);
+    } else {
+        selectedProductIds.add(id);
+    }
+
+    renderProductos();
+    
+    const count = selectedProductIds.size;
+    document.getElementById("bulk-selected-count").innerText = `${count} seleccionado${count !== 1 ? 's' : ''}`;
+}
+
+async function borrarSeleccionadosConfirmar() {
+    const count = selectedProductIds.size;
+    if (count === 0) {
+        showToast("No hay productos seleccionados", "error");
+        return;
+    }
+
+    if (confirm(`¿Estás seguro de que deseas eliminar permanentemente los ${count} productos seleccionados? Esta acción no se puede deshacer.`)) {
+        try {
+            let batch = db.batch();
+            let op = 0;
+
+            for (const prodId of selectedProductIds) {
+                const prod = allProducts.find(p => p.id === prodId);
+                if (prod) {
+                    const ref = db.collection("proveedores").doc(prod.supplierId).collection("productos").doc(prodId);
+                    batch.delete(ref);
+                    op++;
+
+                    if (op >= 450) {
+                        await batch.commit();
+                        batch = db.batch();
+                        op = 0;
+                    }
+                }
+            }
+
+            if (op > 0) await batch.commit();
+
+            showToast(`Se han eliminado ${count} productos`, "success");
+            toggleSelectionMode(false);
+            await cargarDatos();
+        } catch (e) {
+            console.error("Error en borrado masivo:", e);
+            showToast("Error al eliminar los productos", "error");
+        }
+    }
+}
+
+function abrirBulkEditModal() {
+    const count = selectedProductIds.size;
+    if (count === 0) {
+        showToast("No hay productos seleccionados", "error");
+        return;
+    }
+
+    const modal = document.getElementById("modal-bulk-edit");
+    const form = document.getElementById("form-bulk-edit");
+    form.reset();
+
+    // Rellenar proveedores select
+    const suppSelect = document.getElementById("bulk-supplier");
+    suppSelect.innerHTML = '<option value="">-- Mantener actual --</option>';
+    allSuppliers.forEach(s => {
+        suppSelect.innerHTML += `<option value="${s.id}">${s.id}</option>`;
+    });
+
+    // Rellenar responsables select
+    const respSelect = document.getElementById("bulk-responsible");
+    respSelect.innerHTML = '<option value="">-- Mantener actual --</option>';
+    uniqueResponsibles.forEach(r => {
+        respSelect.innerHTML += `<option value="${r}">${r}</option>`;
+    });
+
+    modal.classList.add("active");
+}
+
+function cerrarBulkEditModal() {
+    const modal = document.getElementById("modal-bulk-edit");
+    modal.classList.remove("active");
+}
+
+async function guardarBulkEdit(event) {
+    event.preventDefault();
+
+    const count = selectedProductIds.size;
+    const targetSupplier = document.getElementById("bulk-supplier").value;
+    const targetResponsible = document.getElementById("bulk-responsible").value;
+    const targetCategory = document.getElementById("bulk-category").value.trim();
+
+    if (!targetSupplier && !targetResponsible && !targetCategory) {
+        showToast("No has seleccionado ningún cambio a realizar", "error");
+        return;
+    }
+
+    if (confirm(`Se aplicarán los cambios a ${count} productos. ¿Continuar?`)) {
+        try {
+            let batch = db.batch();
+            let op = 0;
+
+            for (const prodId of selectedProductIds) {
+                const prod = allProducts.find(p => p.id === prodId);
+                if (!prod) continue;
+
+                // Construimos la actualización
+                const updates = {};
+                if (targetResponsible) updates.responsable = targetResponsible;
+                if (targetCategory) updates.categoria = targetCategory;
+
+                const originalSupplier = prod.supplierId;
+                const newSupplier = targetSupplier || originalSupplier;
+
+                if (originalSupplier !== newSupplier) {
+                    // CAMBIO DE PROVEEDOR (Traslado):
+                    // 1. Clonar producto en la nueva colección
+                    const newId = generarIdProducto(newSupplier, prod.nombre || 'Sin nombre');
+                    
+                    const clonedData = {
+                        nombre: prod.nombre || 'Sin nombre',
+                        unidad: prod.unidad || 'ud',
+                        categoria: targetCategory || prod.categoria || 'General',
+                        responsable: targetResponsible || prod.responsable || 'Todos',
+                        proveedor: newSupplier,
+                        precio: prod.precio || "",
+                        precioAnterior: prod.precioAnterior || "",
+                        historialPrecios: prod.historialPrecios || [],
+                        peso: prod.peso || "",
+                        iva: prod.iva || 0
+                    };
+
+                    const newRef = db.collection("proveedores").doc(newSupplier).collection("productos").doc(newId);
+                    batch.set(newRef, clonedData);
+                    op++;
+
+                    // 2. Eliminar de la antigua colección
+                    const oldRef = db.collection("proveedores").doc(originalSupplier).collection("productos").doc(prodId);
+                    batch.delete(oldRef);
+                    op++;
+                } else {
+                    // Mismo proveedor, actualización normal de propiedades
+                    if (Object.keys(updates).length > 0) {
+                        const ref = db.collection("proveedores").doc(originalSupplier).collection("productos").doc(prodId);
+                        batch.update(ref, updates);
+                        op++;
+                    }
+                }
+
+                if (op >= 450) {
+                    await batch.commit();
+                    batch = db.batch();
+                    op = 0;
+                }
+            }
+
+            if (op > 0) await batch.commit();
+
+            showToast(`Se han actualizado ${count} productos`, "success");
+            cerrarBulkEditModal();
+            toggleSelectionMode(false);
+            await cargarDatos();
+        } catch (e) {
+            console.error("Error en edición masiva:", e);
+            showToast("Error al guardar cambios", "error");
+        }
+    }
+}
+
 // Exportación de funciones al HTML
 window.switchTab = switchTab;
 window.toggleBackupBody = toggleBackupBody;
@@ -852,3 +1107,11 @@ window.filtrarCatalogo = filtrarCatalogo;
 window.borrarProductoConfirmar = borrarProductoConfirmar;
 window.borrarProveedorConfirmar = borrarProveedorConfirmar;
 window.procesarImportacion = procesarImportacion;
+
+// Nuevas exportaciones para acciones masivas
+window.toggleSelectionMode = toggleSelectionMode;
+window.toggleSelectProduct = toggleSelectProduct;
+window.abrirBulkEditModal = abrirBulkEditModal;
+window.cerrarBulkEditModal = cerrarBulkEditModal;
+window.guardarBulkEdit = guardarBulkEdit;
+window.borrarSeleccionadosConfirmar = borrarSeleccionadosConfirmar;

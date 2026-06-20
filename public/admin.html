@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     
     <!-- Custom Admin Styles -->
-    <link rel="stylesheet" href="css/admin.css?v=11.35">
+    <link rel="stylesheet" href="css/admin.css?v=11.36">
 </head>
 <body>
 
@@ -42,9 +42,15 @@
         <section id="pane-productos" class="tab-pane">
             <!-- FILTROS Y BUSCADOR -->
             <div class="filter-card">
-                <div class="search-group">
-                    <span class="material-icons-round search-icon">search</span>
-                    <input type="text" id="prod-search" class="search-input" placeholder="Buscar por nombre de producto..." oninput="filtrarCatalogo()">
+                <div class="search-group" style="gap: 8px;">
+                    <div style="position: relative; flex: 1;">
+                        <span class="material-icons-round search-icon">search</span>
+                        <input type="text" id="prod-search" class="search-input" placeholder="Buscar por nombre..." oninput="filtrarCatalogo()">
+                    </div>
+                    <button type="button" id="btn-toggle-select-mode" class="form-input" style="width: auto; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: pointer; border-color: var(--border); background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 13px;" onclick="toggleSelectionMode()">
+                        <span class="material-icons-round" id="icon-toggle-select-mode" style="font-size: 18px; color: var(--text-muted);">check_box_outline_blank</span>
+                        <span id="lbl-toggle-select-mode">Seleccionar</span>
+                    </button>
                 </div>
                 <div class="filters-grid">
                     <select id="filter-proveedor" class="select-filter" onchange="filtrarCatalogo()">
@@ -211,6 +217,66 @@
         </div>
     </div>
 
+    <!-- BARRA DE ACCIONES MASIVAS -->
+    <div id="bulk-actions-bar" class="bulk-actions-bar" style="display: none;">
+        <div class="bulk-info">
+            <span class="material-icons-round" style="color: white;">check_box</span>
+            <span id="bulk-selected-count">0 seleccionados</span>
+        </div>
+        <div class="bulk-buttons">
+            <button class="btn-bulk btn-bulk-edit" onclick="abrirBulkEditModal()">
+                <span class="material-icons-round">edit</span> Editar lote
+            </button>
+            <button class="btn-bulk btn-bulk-delete" onclick="borrarSeleccionadosConfirmar()">
+                <span class="material-icons-round">delete</span> Eliminar
+            </button>
+            <button class="btn-bulk btn-bulk-cancel" onclick="toggleSelectionMode(false)">
+                <span class="material-icons-round">close</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: EDICIÓN EN LOTE ================= -->
+    <div id="modal-bulk-edit" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Editar Artículos en Lote</h3>
+                <button class="modal-close" onclick="cerrarBulkEditModal()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <form id="form-bulk-edit" onsubmit="guardarBulkEdit(event)">
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+                    Los campos que dejes vacíos o como "Mantener actual" no se modificarán en los artículos seleccionados.
+                </p>
+                
+                <div class="form-group">
+                    <label class="form-label" for="bulk-supplier">Cambiar Proveedor (Opcional)</label>
+                    <select id="bulk-supplier" class="form-select">
+                        <option value="">-- Mantener actual --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bulk-responsible">Cambiar Responsable (Opcional)</label>
+                    <select id="bulk-responsible" class="form-select">
+                        <option value="">-- Mantener actual --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bulk-category">Cambiar Categoría (Opcional)</label>
+                    <input type="text" id="bulk-category" class="form-input" placeholder="Ej: Lácteos (vacío para mantener actual)">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="cerrarBulkEditModal()">Cancelar</button>
+                    <button type="submit" class="btn-submit">Aplicar cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- TOAST DE NOTIFICACIONES -->
     <div id="toast-container" class="toast-container">
         <div class="toast" id="toast-element">
@@ -225,7 +291,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <!-- Configuración del Proyecto e Inicialización -->
-    <script type="module" src="js/admin.js?v=11.35"></script>
+    <script type="module" src="js/admin.js?v=11.36"></script>
 
 </body>
 </html>
