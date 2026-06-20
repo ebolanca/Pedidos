@@ -2,100 +2,230 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Rail - Importador</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gestión de Pedidos - Catálogo</title>
     
-    <style>
-        body { font-family: 'Inter', sans-serif; padding: 20px; background: #f0f2f5; color: #333; margin: 0; }
-        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h1, h2 { margin-top: 0; color: #007bff; }
-        h2 { font-size: 18px; margin-top: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
-        label { font-weight: 600; display: block; margin-top: 15px; margin-bottom: 5px; font-size: 13px; color: #555; }
-        input[type="text"], input[type="number"], textarea, select { width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; box-sizing: border-box; font-size: 13px; font-family: inherit; }
-        textarea { height: 100px; white-space: pre; overflow-x: auto; font-family: monospace; }
-        
-        /* ESTILO NUEVO PARA EL BOTÓN DE SUBIR ARCHIVO */
-        input[type="file"] {
-            background: #f8f9fa; padding: 15px; border: 2px dashed #dee2e6; border-radius: 8px; width: 100%; box-sizing: border-box; cursor: pointer;
-        }
-        input[type="file"]:hover { background: #e9ecef; border-color: #007bff; }
-
-        .btn-green { background: #28a745; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; }
-        .btn-blue { background: #007bff; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; }
-        button:disabled { background: #e9ecef; color: #adb5bd; cursor: not-allowed; }
-        
-        .tips { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid #ffeeba; }
-        .status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; }
-        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        
-        .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-        .back-btn { display: inline-block; margin-bottom: 15px; text-decoration: none; color: #666; font-weight: 600; font-size: 14px; }
-    </style>
+    <!-- Google Fonts & Material Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <!-- Custom Admin Styles -->
+    <link rel="stylesheet" href="css/admin.css?v=11.35">
 </head>
 <body>
 
-<div class="container">
-    <a href="index.html" class="back-btn">← Volver a la App</a>
-    <div style="display:flex; justify-content:space-between; align-items:center">
-        <h1>Gestor de Productos</h1>
-        <div id="authStatus" style="font-size:12px; font-weight:bold; color:#f39c12">🔌 Conectando...</div>
+    <!-- CABECERA -->
+    <header class="admin-header">
+        <div class="header-top">
+            <a href="index.html" class="back-btn">
+                <span class="material-icons-round">arrow_back</span> VOLVER
+            </a>
+            <h1 class="header-title">Gestión Catálogo</h1>
+            <div id="authStatus" class="header-user-info">🔌 Conectando...</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- NAVEGACIÓN POR PESTAÑAS -->
+        <nav class="tabs-navigation">
+            <button class="tab-btn active" id="tab-prods-btn" onclick="switchTab('productos')">
+                <span class="material-icons-round">inventory_2</span> Productos
+            </button>
+            <button class="tab-btn" id="tab-provs-btn" onclick="switchTab('proveedores')">
+                <span class="material-icons-round">storefront</span> Proveedores
+            </button>
+        </nav>
+
+        <!-- ================= PESTAÑA: PRODUCTOS ================= -->
+        <section id="pane-productos" class="tab-pane">
+            <!-- FILTROS Y BUSCADOR -->
+            <div class="filter-card">
+                <div class="search-group">
+                    <span class="material-icons-round search-icon">search</span>
+                    <input type="text" id="prod-search" class="search-input" placeholder="Buscar por nombre de producto..." oninput="filtrarCatalogo()">
+                </div>
+                <div class="filters-grid">
+                    <select id="filter-proveedor" class="select-filter" onchange="filtrarCatalogo()">
+                        <option value="">-- Todos los Proveedores --</option>
+                    </select>
+                    <select id="filter-categoria" class="select-filter" onchange="filtrarCatalogo()">
+                        <option value="">-- Todas las Categorías --</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- VISTA DE CARGA -->
+            <div id="prods-loading" class="loading-view">
+                <div class="spinner"></div>
+                <p>Cargando catálogo de productos...</p>
+            </div>
+
+            <!-- GRILLA DE PRODUCTOS -->
+            <div id="prods-grid" class="content-grid" style="display: none;"></div>
+
+            <!-- ESTADO VACÍO -->
+            <div id="prods-empty" class="empty-state" style="display: none;">
+                <span class="material-icons-round">search_off</span>
+                <p>No se encontraron productos con los filtros seleccionados.</p>
+            </div>
+        </section>
+
+        <!-- ================= PESTAÑA: PROVEEDORES ================= -->
+        <section id="pane-proveedores" class="tab-pane" style="display: none;">
+            <!-- VISTA DE CARGA -->
+            <div id="provs-loading" class="loading-view">
+                <div class="spinner"></div>
+                <p>Cargando proveedores...</p>
+            </div>
+
+            <!-- GRILLA DE PROVEEDORES -->
+            <div id="provs-grid" class="content-grid" style="display: none;"></div>
+
+            <!-- ESTADO VACÍO -->
+            <div id="provs-empty" class="empty-state" style="display: none;">
+                <span class="material-icons-round">storefront</span>
+                <p>No hay proveedores registrados.</p>
+            </div>
+        </section>
+
+        <!-- SECCIÓN DE RESPALDO/CSV (OCULTA POR DEFECTO) -->
+        <div class="backup-section">
+            <div class="backup-title" onclick="toggleBackupBody()">
+                <span class="material-icons-round" id="backup-icon">keyboard_arrow_right</span>
+                <span>Importación por Lote (Avanzado/CSV)</span>
+            </div>
+            <div class="backup-body" id="backup-body" style="display: none;">
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                    Usa esta sección únicamente si necesitas re-importar el catálogo inicial en formato CSV.
+                    Formato: Nombre, Cantidad, Unidad, Responsable, Categoría, Precio
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Subir Archivo .CSV</label>
+                    <input type="file" id="fileUpload" accept=".csv, .txt" class="form-input">
+                </div>
+                <div style="text-align:center; margin: 10px 0; font-size:12px; color:var(--text-muted)">- O PEGA EL CONTENIDO CSV ABAJO -</div>
+                <div class="form-group">
+                    <textarea id="csvData" class="form-input" style="height: 80px; font-family: monospace; white-space: pre;" placeholder="Mercadona,,,,,&#10;Tomates,5,kg,Cocina,Verdura,2.50"></textarea>
+                </div>
+                <button onclick="procesarImportacion()" id="btnImport" class="btn-submit" style="background-color: var(--success);" disabled>🚀 PROCESAR IMPORTACIÓN CSV</button>
+                <div id="status" class="form-group" style="margin-top: 10px; padding: 10px; border-radius: var(--radius-sm); display: none;"></div>
+            </div>
+        </div>
     </div>
 
-    <div class="tips">
-        <strong>Opción A: Carga Masiva (Archivo CSV)</strong><br>
-        Sube tu archivo .csv o pega el contenido abajo. El sistema detecta automáticamente los proveedores.<br>
-        Formato: <code>Nombre, Cantidad, Unidad, Responsable, Categoría, Precio</code>
+    <!-- BOTÓN ACCIÓN FLOTANTE (FAB) -->
+    <button id="main-fab" class="fab-btn" onclick="abrirCrearNuevo()">
+        <span class="material-icons-round">add</span>
+    </button>
+
+    <!-- ================= MODAL: DETALLE / EDICIÓN DE PRODUCTO ================= -->
+    <div id="modal-producto" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-prod-title">Detalles del Producto</h3>
+                <button class="modal-close" onclick="cerrarModalProducto()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <form id="form-producto" onsubmit="guardarProducto(event)">
+                <input type="hidden" id="prod-id">
+                <input type="hidden" id="prod-original-supplier">
+                
+                <div class="form-group">
+                    <label class="form-label" for="prod-name">Nombre del Producto *</label>
+                    <input type="text" id="prod-name" class="form-input" required placeholder="Ej: Tomates pera">
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="prod-price">Precio (€)</label>
+                        <input type="number" id="prod-price" class="form-input" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="prod-unit">Unidad *</label>
+                        <input type="text" id="prod-unit" class="form-input" required placeholder="Ej: kg, ud, Caja">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="prod-category">Categoría *</label>
+                    <input type="text" id="prod-category" class="form-input" required placeholder="Ej: Verduras, Limpieza">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="prod-supplier">Proveedor *</label>
+                    <select id="prod-supplier" class="form-select" required>
+                        <option value="">-- Selecciona Proveedor --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="prod-responsible">Personal Responsable *</label>
+                    <select id="prod-responsible" class="form-select" required>
+                        <option value="Todos">Todos</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="cerrarModalProducto()">Cancelar</button>
+                    <button type="submit" class="btn-submit">Guardar</button>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <label>1. Subir Archivo .CSV</label>
-    <input type="file" id="fileUpload" accept=".csv, .txt">
+    <!-- ================= MODAL: DETALLE / EDICIÓN DE PROVEEDOR ================= -->
+    <div id="modal-proveedor" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-prov-title">Detalles del Proveedor</h3>
+                <button class="modal-close" onclick="cerrarModalProveedor()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <form id="form-proveedor" onsubmit="guardarProveedor(event)">
+                <input type="hidden" id="prov-edit-mode">
+                
+                <div class="form-group">
+                    <label class="form-label" for="prov-name">Nombre del Proveedor *</label>
+                    <input type="text" id="prov-name" class="form-input" required placeholder="Ej: Mercadona">
+                </div>
 
-    <div style="text-align:center; margin: 10px 0; font-size:12px; color:#999">- O PEGA EL CONTENIDO -</div>
+                <div class="form-group">
+                    <label class="form-label">Quién hace los pedidos (Responsables)</label>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                        Selecciona qué personal del staff tiene permitido realizar pedidos a este proveedor:
+                    </p>
+                    <div class="checkbox-grid" id="prov-responsibles-checkboxes">
+                        <!-- Casillas generadas dinámicamente -->
+                    </div>
+                </div>
 
-    <textarea id="csvData" placeholder="Mercadona,,,,,&#10;Tomates,5,kg,Cocina,Verdura,2.50"></textarea>
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="cerrarModalProveedor()">Cancelar</button>
+                    <button type="submit" class="btn-submit">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST DE NOTIFICACIONES -->
+    <div id="toast-container" class="toast-container">
+        <div class="toast" id="toast-element">
+            <span class="material-icons-round" id="toast-icon">check_circle</span>
+            <span id="toast-text">Operación completada</span>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v9 compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
-    <button onclick="procesarImportacion()" id="btnImport" class="btn-green" disabled>⏳ Cargando...</button>
-    <div id="status" class="status"></div>
-
-    <h2>Opción B: Añadir un Producto Manual</h2>
-    <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #e9ecef;">
-        
-        <label>1. Selecciona Proveedor</label>
-        <select id="selProveedor">
-            <option value="">-- Cargando proveedores... --</option>
-        </select>
-
-        <label>2. Detalles del Producto</label>
-        <div class="grid-2">
-            <input type="text" id="mNombre" placeholder="Nombre (Ej: Lejía)">
-            <input type="number" id="mPrecio" placeholder="Precio (€)" step="0.01">
-        </div>
-        
-        <div class="grid-3" style="margin-top:10px">
-            <input type="text" id="mUnidad" placeholder="Unidad (Caja, Kg...)">
-            <input type="text" id="mCategoria" placeholder="Categoría">
-            <select id="mResponsable">
-                <option value="Jazmín">Jazmín</option>
-                <option value="Flor">Flor</option>
-                <option value="Jose">Jose</option>
-                <option value="Amina">Amina</option>
-                <option value="Aaron">Aaron</option>
-                <option value="Jhoan">Jhoan</option>
-            </select>
-        </div>
-
-        <button onclick="guardarManual()" id="btnManual" class="btn-blue" disabled>💾 GUARDAR PRODUCTO</button>
-    </div>
-
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-<script type="module" src="js/admin.js"></script>
+    <!-- Configuración del Proyecto e Inicialización -->
+    <script type="module" src="js/admin.js?v=11.35"></script>
 
 </body>
 </html>

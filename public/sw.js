@@ -1,13 +1,16 @@
 /* public/sw.js */
 // CAMBIA ESTE NOMBRE PARA FORZAR LA ACTUALIZACIÓN EN LOS MÓVILES
-const CACHE_NAME = 'rail-app-cache-v11.34';
+const CACHE_NAME = 'rail-app-cache-v11.35';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './admin.html',
   './css/styles.css',
+  './css/admin.css',
   './js/main.js',
   './js/config.js',
+  './js/admin.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'https://fonts.googleapis.com/icon?family=Material+Icons+Round'
 ];
