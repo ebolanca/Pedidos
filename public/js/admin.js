@@ -68,7 +68,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.38";
+        const CLIENT_VERSION = "11.39";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -80,9 +80,92 @@ async function inicializarGestor() {
         }
 
         await cargarDatos();
+        
+        // Ejecutar migración silenciosa en segundo plano para limpiar responsables antiguos
+        setTimeout(ejecutarMigracionResponsables, 2000);
     } catch (e) {
         console.error("Error al inicializar el gestor:", e);
         showToast("Error al cargar la base de datos", "error");
+    }
+}
+
+async function ejecutarMigracionResponsables() {
+    try {
+        let batch = db.batch();
+        let ops = 0;
+        let countProds = 0;
+        let countProvs = 0;
+
+        // 1. Migrar responsables en la colección de proveedores
+        const snapProvs = await db.collection("proveedores").get();
+        for (const doc of snapProvs.docs) {
+            const data = doc.data();
+            let responsables = data.responsables || [];
+            let changedProv = false;
+            
+            const index = responsables.findIndex(r => r === "Jazmín y Aarón" || r === "Jazmín y Aaron");
+            if (index !== -1) {
+                responsables.splice(index, 1);
+                if (!responsables.includes("Jazmín")) responsables.push("Jazmín");
+                if (!responsables.includes("Aarón")) responsables.push("Aarón");
+                changedProv = true;
+            }
+
+            // También normalizar cualquier "Aaron" sin acento a "Aarón"
+            const aaronIndex = responsables.indexOf("Aaron");
+            if (aaronIndex !== -1) {
+                responsables[aaronIndex] = "Aarón";
+                changedProv = true;
+            }
+
+            if (changedProv) {
+                // Eliminar posibles duplicados
+                responsables = [...new Set(responsables)];
+                batch.update(doc.ref, { responsables: responsables });
+                ops++;
+                countProvs++;
+            }
+
+            // 2. Migrar productos de este proveedor
+            const snapProds = await doc.ref.collection("productos").get();
+            for (const pDoc of snapProds.docs) {
+                const pData = pDoc.data();
+                let needUpdate = false;
+                let newResponsable = pData.responsable;
+
+                if (pData.responsable === "Jazmín y Aarón" || pData.responsable === "Jazmín y Aaron") {
+                    newResponsable = "Aarón";
+                    needUpdate = true;
+                } else if (pData.responsable === "Aaron") {
+                    newResponsable = "Aarón";
+                    needUpdate = true;
+                }
+
+                if (needUpdate) {
+                    batch.update(pDoc.ref, { responsable: newResponsable });
+                    ops++;
+                    countProds++;
+                }
+
+                if (ops >= 450) {
+                    await batch.commit();
+                    batch = db.batch();
+                    ops = 0;
+                }
+            }
+        }
+
+        if (ops > 0) {
+            await batch.commit();
+        }
+
+        if (countProds > 0 || countProvs > 0) {
+            console.log(`✅ MIGRACIÓN: Se actualizaron ${countProds} productos y ${countProvs} proveedores con responsables dobles o sin tilde a 'Aarón' / 'Jazmín'.`);
+            showToast(`Migrados ${countProds} productos antiguos a Aarón`, "success");
+            await cargarDatos();
+        }
+    } catch (e) {
+        console.error("Error al ejecutar migración de responsables:", e);
     }
 }
 
@@ -721,7 +804,8 @@ function normalizarResponsable(resp) {
     if(r.includes("flor")) return "Flor";
     if(r.includes("jose") || r.includes("josé")) return "Jose";
     if(r.includes("amina")) return "Amina";
-    if(r.includes("jazmin") || r.includes("aaron")) return "Jazmín y Aarón";
+    if(r.includes("aaron")) return "Aarón";
+    if(r.includes("jazmin")) return "Jazmín";
     if(r.includes("jhoan")) return "Jhoan";
     return resp;
 }
