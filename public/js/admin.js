@@ -68,7 +68,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.36";
+        const CLIENT_VERSION = "11.37";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -1098,6 +1098,7 @@ async function guardarBulkEdit(event) {
 window.switchTab = switchTab;
 window.toggleBackupBody = toggleBackupBody;
 window.abrirCrearNuevo = abrirCrearNuevo;
+window.abrirModalProducto = abrirModalProducto;
 window.cerrarModalProducto = cerrarModalProducto;
 window.guardarProducto = guardarProducto;
 window.abrirModalProveedor = abrirModalProveedor;

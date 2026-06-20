@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js'; // Config privada existente
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.35';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.37';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
 import { db, auth } from './modules/firebase-init.js';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js';

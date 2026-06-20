@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
-    <link rel="stylesheet" href="css/styles.css?v=11.36">
+    <link rel="stylesheet" href="css/styles.css?v=11.37">
 </head>
 
 <body>
@@ -135,22 +135,7 @@
 
         </div>
 
-        <!-- FAB Herramientas -->
-        <div class="tools-fab-container" id="toolsFab">
-            <div class="tools-speed-dial" id="toolsSpeedDial">
-                <button class="speed-dial-btn" onclick="openUnitCalculator()">
-                    <span class="material-icons-round">balance</span>
-                    <span class="speed-dial-label">€/Unidad</span>
-                </button>
-                <button class="speed-dial-btn" onclick="openCalculator()">
-                    <span class="material-icons-round">calculate</span>
-                    <span class="speed-dial-label">Calculadora</span>
-                </button>
-            </div>
-            <button class="tools-fab-btn" onclick="toggleToolsFab()">
-                <span class="material-icons-round" id="toolsFabIcon">build</span>
-            </button>
-        </div>
+
 
     </div>
 
@@ -259,15 +244,20 @@
             <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
                 <div class="v9-back-btn-container" onclick="v9_volverInicio()">
                     <span class="material-icons-round">arrow_back</span>
-                    <span style="margin-left:6px">VOLVER</span>
                 </div>
                 <div class="v9-title" id="v9-prov-title">...</div>
             </div>
             <div style="display:flex; gap:10px; align-items:center;">
-                <button style="border:none; background:none; color:#1967d2" onclick="v9_toggleSortMode()">
+                <button style="border:none; background:none; color:#1967d2; cursor:pointer;" onclick="openCalculator()">
+                    <span class="material-icons-round">calculate</span>
+                </button>
+                <button style="border:none; background:none; color:#1967d2; cursor:pointer;" onclick="openUnitCalculator()">
+                    <span class="material-icons-round">balance</span>
+                </button>
+                <button style="border:none; background:none; color:#1967d2; cursor:pointer;" onclick="v9_toggleSortMode()">
                     <span class="material-icons-round" id="v9-sort-icon">sort_by_alpha</span>
                 </button>
-                <button style="border:none; background:none; color:#d32f2f" onclick="v9_borrarPedidoActual()"><span
+                <button style="border:none; background:none; color:#d32f2f; cursor:pointer;" onclick="v9_borrarPedidoActual()"><span
                         class="material-icons-round">delete_forever</span></button>
             </div>
         </div>
@@ -337,7 +327,7 @@
         }
     </script>
 
-    <script type="module" src="js/main.js?v=11.36"></script>
+    <script type="module" src="js/main.js?v=11.37"></script>
 </body>
 
 </html>
