@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js'; // Config privada existente
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.39';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.40';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
 import { db, auth } from './modules/firebase-init.js';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js';
@@ -172,28 +172,48 @@ function toggleFav(id) {
     v8_renderTabla();
 }
 
-function v8_cargarProveedores() {
+async function v8_cargarProveedores() {
     const sel = document.getElementById("v8-proveedor");
+    if (!sel) return;
     sel.innerHTML = '<option value="">Cargando...</option>';
-    db.collection("proveedores").get().then(snap => {
-        sel.innerHTML = '<option value="">-- Selecciona Proveedor --</option>';
+    try {
+        const snap = await db.collection("proveedores").get();
+        const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const userNormalized = normalize(userName);
         let list = [];
-        snap.forEach(doc => {
+
+        for (const doc of snap.docs) {
             const d = doc.data();
             const resp = d.responsables || [];
-
-            const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const userNormalized = normalize(userName);
             const isAllowed = Array.isArray(resp) && resp.some(r => normalize(r).includes(userNormalized));
 
-            if (userRole === 'admin' || isAllowed || resp.includes("Todos")) {
+            if (userRole === 'admin') {
                 list.push(doc.id);
+            } else if (isAllowed || resp.includes("Todos")) {
+                // Si es un trabajador, verificamos si tiene algún producto del que se encargue
+                const snapProds = await doc.ref.collection("productos").get();
+                let hasOwnProduct = false;
+                
+                snapProds.forEach(pDoc => {
+                    const pData = pDoc.data();
+                    const pResp = pData.responsable ? pData.responsable.trim() : "Todos";
+                    if (pResp === "Todos" || normalize(pResp).includes(userNormalized)) {
+                        hasOwnProduct = true;
+                    }
+                });
+                
+                if (hasOwnProduct) {
+                    list.push(doc.id);
+                }
             }
-        });
+        }
+
+        sel.innerHTML = '<option value="">-- Selecciona Proveedor --</option>';
         list.sort().forEach(p => sel.innerHTML += `<option value="${p}">${p}</option>`);
-    }).catch(err => {
+    } catch (err) {
+        console.error("Error cargando proveedores:", err);
         sel.innerHTML = '<option value="">Error cargando</option>';
-    });
+    }
 }
 
 function v8_cargarDashboardHistorial() {
@@ -1274,12 +1294,45 @@ async function v9_cargarProveedoresResumen() {
         const snap = await db.collection("borradores").get();
         const provs = [];
 
-        snap.forEach(doc => {
-            // Lógica permisiva (General): Si existe el borrador...
+        const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const userNormalized = normalize(userName);
+
+        for (const doc of snap.docs) {
             if (LISTA_PROVS.includes(doc.id)) {
-                provs.push(doc.id);
+                if (userRole === 'admin') {
+                    provs.push(doc.id);
+                } else {
+                    const data = doc.data();
+                    const items = data.items || {};
+                    const activePids = Object.keys(items).filter(k => items[k] > 0);
+
+                    if (activePids.length > 0) {
+                        if (activePids.some(k => k.startsWith("manual_"))) {
+                            provs.push(doc.id);
+                        } else {
+                            try {
+                                const snapProds = await db.collection("proveedores").doc(doc.id).collection("productos").get();
+                                let hasOwnProduct = false;
+                                snapProds.forEach(pDoc => {
+                                    if (activePids.includes(pDoc.id)) {
+                                        const pData = pDoc.data();
+                                        const pResp = pData.responsable ? pData.responsable.trim() : "Todos";
+                                        if (pResp === "Todos" || normalize(pResp).includes(userNormalized)) {
+                                            hasOwnProduct = true;
+                                        }
+                                    }
+                                });
+                                if (hasOwnProduct) {
+                                    provs.push(doc.id);
+                                }
+                            } catch (err) {
+                                console.error(`Error al filtrar borrador del proveedor ${doc.id}:`, err);
+                            }
+                        }
+                    }
+                }
             }
-        });
+        }
 
         cont.innerHTML = "";
         const sorted = provs.sort();
@@ -1352,8 +1405,8 @@ async function v9_abrirProveedorResumen(provName) {
         v9_currentData.catalogoCategorias = {};
         v9_currentData.catalogoPrecios = {};
         v9_currentData.catalogoPesos = {};
-
         v9_currentData.catalogoIvas = {};
+        v9_currentData.catalogoResponsables = {};
 
         try {
             const snapCat = await db.collection("proveedores").doc(provName).collection("productos").get();
@@ -1364,6 +1417,7 @@ async function v9_abrirProveedorResumen(provName) {
                 v9_currentData.catalogoPrecios[d.id] = data.precio || "";
                 v9_currentData.catalogoPesos[d.id] = data.peso || "1";
                 v9_currentData.catalogoIvas[d.id] = data.iva || 0;
+                v9_currentData.catalogoResponsables[d.id] = data.responsable || "Todos";
             });
         } catch (e) { }
 
@@ -1407,6 +1461,20 @@ function v9_renderListaLector() {
 
     for (let k in items) {
         if (items[k] > 0) {
+            // Filtrar por responsable en el Lector
+            const r = v9_currentData.catalogoResponsables ? (v9_currentData.catalogoResponsables[k] || "Todos") : "Todos";
+            let isVisible = false;
+            if (userRole === 'admin' || r === "Todos" || k.startsWith("manual_")) {
+                isVisible = true;
+            } else {
+                const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const rNorm = normalize(r);
+                const uNorm = normalize(userName);
+                if (rNorm.includes(uNorm)) isVisible = true;
+            }
+
+            if (!isVisible) continue;
+
             let nombreReal = catalogo[k];
             let categoriaReal = categorias[k] || "General";
             let precioReal = v9_currentData.catalogoPrecios ? v9_currentData.catalogoPrecios[k] : "";
