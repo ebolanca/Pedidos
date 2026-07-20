@@ -173,8 +173,10 @@ async function cargarDatos() {
     // Preservar valores de filtros antes de vaciar/recargar
     const filterProv = document.getElementById("filter-proveedor");
     const filterCat = document.getElementById("filter-categoria");
+    const filterProvEncargado = document.getElementById("filter-prov-encargado");
     const prevFilterProvVal = filterProv ? filterProv.value : "";
     const prevFilterCatVal = filterCat ? filterCat.value : "";
+    const prevFilterProvEncargadoVal = filterProvEncargado ? filterProvEncargado.value : "";
 
     // Mostrar cargando
     document.getElementById("prods-loading").style.display = "flex";
@@ -188,13 +190,30 @@ async function cargarDatos() {
         // 1. Cargar proveedores
         const snapProvs = await db.collection("proveedores").get();
         allSuppliers = [];
+        const responsablesSet = new Set();
         snapProvs.forEach(doc => {
+            const data = doc.data();
             allSuppliers.push({
                 id: doc.id,
-                ...doc.data()
+                ...data
             });
+            if (data.responsables && Array.isArray(data.responsables)) {
+                data.responsables.forEach(r => {
+                    if (r !== "Todos") responsablesSet.add(r);
+                });
+            }
         });
         allSuppliers.sort((a, b) => a.id.localeCompare(b.id));
+
+        // Llenar select de encargados en la pestaña de proveedores
+        if (filterProvEncargado) {
+            filterProvEncargado.innerHTML = '<option value="">-- Todos los Encargados --</option>';
+            const uniqueResponsables = Array.from(responsablesSet).sort();
+            uniqueResponsables.forEach(r => {
+                filterProvEncargado.innerHTML += `<option value="${r}">${r}</option>`;
+            });
+            filterProvEncargado.value = prevFilterProvEncargadoVal;
+        }
 
         // Llenar select de proveedores en los filtros
         const prodProvSelect = document.getElementById("prod-supplier");
@@ -368,9 +387,18 @@ function renderProductos() {
 function renderProveedores() {
     const grid = document.getElementById("provs-grid");
     const emptyState = document.getElementById("provs-empty");
+    const filterEncargadoVal = document.getElementById("filter-prov-encargado") ? document.getElementById("filter-prov-encargado").value : "";
     grid.innerHTML = "";
 
-    if (allSuppliers.length === 0) {
+    let filteredSuppliers = allSuppliers;
+    if (filterEncargadoVal) {
+        filteredSuppliers = allSuppliers.filter(s => {
+            const responsables = s.responsables || [];
+            return responsables.includes("Todos") || responsables.includes(filterEncargadoVal);
+        });
+    }
+
+    if (filteredSuppliers.length === 0) {
         grid.style.display = "none";
         emptyState.style.display = "block";
         return;
@@ -379,7 +407,7 @@ function renderProveedores() {
     emptyState.style.display = "none";
     grid.style.display = "grid";
 
-    allSuppliers.forEach(s => {
+    filteredSuppliers.forEach(s => {
         const card = document.createElement("div");
         card.className = "supplier-card";
 

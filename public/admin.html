@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     
     <!-- Custom Admin Styles -->
-    <link rel="stylesheet" href="css/admin.css?v=11.40">
+    <link rel="stylesheet" href="css/admin.css?v=11.41">
 </head>
 <body>
 
@@ -80,6 +80,15 @@
 
         <!-- ================= PESTAÑA: PROVEEDORES ================= -->
         <section id="pane-proveedores" class="tab-pane" style="display: none;">
+            <!-- FILTROS PROVEEDORES -->
+            <div class="filter-card">
+                <div class="filters-grid">
+                    <select id="filter-prov-encargado" class="select-filter" onchange="renderProveedores()">
+                        <option value="">-- Todos los Encargados --</option>
+                    </select>
+                </div>
+            </div>
+
             <!-- VISTA DE CARGA -->
             <div id="provs-loading" class="loading-view">
                 <div class="spinner"></div>
@@ -291,7 +300,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <!-- Configuración del Proyecto e Inicialización -->
-    <script type="module" src="js/admin.js?v=11.40"></script>
+    <script type="module" src="js/admin.js?v=11.41"></script>
 
 </body>
 </html>

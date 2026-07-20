@@ -3,7 +3,7 @@ const { execSync } = require('child_process');
 const https = require('https');
 
 async function syncVersion() {
-    const VERSION = "11.40";
+    const VERSION = "11.41";
     const PROJECT_ID = "pedidos-rail-app-2025-87f2c";
     
     console.log(`🚀 Sincronizando versión ${VERSION} con Firestore (REST API)...`);
