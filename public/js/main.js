@@ -55,7 +55,7 @@ updateConnectionStatus();
 
 /* main.js - Función iniciarApp */
 function iniciarApp() {
-    auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(async user => {
         const loader = document.getElementById('loading-screen');
         if (loader) loader.style.display = "none";
 
