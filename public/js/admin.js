@@ -1369,6 +1369,23 @@ async function altaPersonal() {
             nombre: name,
             rol: "worker"
         });
+        
+        // Crear usuario en Firebase Auth sin desloguear al admin actual
+        try {
+            const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
+            await secondaryApp.auth().createUserWithEmailAndPassword(email, "rail2026");
+            await secondaryApp.auth().signOut();
+            await secondaryApp.delete();
+            console.log("Usuario Auth creado exitosamente");
+        } catch (authErr) {
+            console.warn("El usuario ya existe en Auth o hubo un error:", authErr);
+            // Si la app secundaria quedó viva por algún error, intentamos borrarla
+            try {
+                const appToDel = firebase.app("SecondaryApp");
+                if (appToDel) await appToDel.delete();
+            } catch(e){}
+        }
+
         showToast("Encargado añadido con éxito", "success");
         emailInput.value = "";
         nameInput.value = "";
