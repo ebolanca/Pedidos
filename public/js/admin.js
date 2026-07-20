@@ -26,10 +26,52 @@ auth.onAuthStateChanged(async user => {
             });
             return;
         }
+
+        // AUTO-MIGRACIÓN DE MAPA_USUARIOS A FIRESTORE SI ESTÁ VACÍO
+        try {
+            const personalRef = db.collection("personal");
+            const snapshot = await personalRef.limit(1).get();
+            if (snapshot.empty) {
+                console.log("Migrando MAPA_USUARIOS a Firestore...");
+                const batch = db.batch();
+                for (const [correo, nombre] of Object.entries(MAPA_USUARIOS)) {
+                    batch.set(personalRef.doc(correo), {
+                        email: correo,
+                        nombre: nombre,
+                        rol: ADMIN_EMAILS.includes(correo) ? "admin" : "worker"
+                    });
+                }
+                await batch.commit();
+                console.log("Migración de personal completada.");
+            }
+        } catch(e) {
+            console.error("Error en auto-migración de personal:", e);
+        }
+
+        // Obtener nombre del usuario actual desde Firestore
+        let nombreAdmin = 'Admin';
+        try {
+            const docUser = await db.collection("personal").doc(email).get();
+            if (docUser.exists) {
+                nombreAdmin = docUser.data().nombre || 'Admin';
+            } else {
+                // Si no existe pero es admin, lo agregamos
+                await db.collection("personal").doc(email).set({
+                    email: email,
+                    nombre: MAPA_USUARIOS[email] || 'Admin',
+                    rol: 'admin'
+                });
+                nombreAdmin = MAPA_USUARIOS[email] || 'Admin';
+            }
+        } catch(e) {
+            console.error("Error al cargar datos del usuario admin:", e);
+            nombreAdmin = MAPA_USUARIOS[email] || 'Admin'; // fallback
+        }
+
         document.getElementById("authStatus").innerHTML = `
             <span style="color:#10b981; font-weight:600; display:flex; align-items:center; gap:4px">
                 <span class="material-icons-round" style="font-size:16px">admin_panel_settings</span>
-                ${MAPA_USUARIOS[user.email] || 'Admin'}
+                ${nombreAdmin}
             </span>
         `;
         habilitarBotonesCSV();
@@ -50,9 +92,21 @@ function habilitarBotonesCSV() {
 // --- 2. INICIALIZACIÓN Y CARGA DE DATOS ---
 async function inicializarGestor() {
     try {
-        // Cargar responsables del mapa de usuarios
-        const staffNames = Array.from(new Set(Object.values(MAPA_USUARIOS)));
-        staffNames.sort();
+        // Cargar responsables desde Firestore (colección personal)
+        const personalSnap = await db.collection("personal").get();
+        let staffNames = [];
+        if (!personalSnap.empty) {
+            personalSnap.forEach(doc => {
+                const data = doc.data();
+                if (data.nombre) staffNames.push(data.nombre);
+            });
+            staffNames = Array.from(new Set(staffNames));
+        } else {
+            // Fallback si por alguna razón falla la carga
+            staffNames = Array.from(new Set(Object.values(MAPA_USUARIOS)));
+        }
+        
+        staffNames.sort((a, b) => a.localeCompare(b));
         uniqueResponsibles = ['Todos', ...staffNames];
 
         // Llenar select de responsables en modal de productos
@@ -460,21 +514,28 @@ function filtrarCatalogo() {
 function switchTab(tab) {
     activeTab = tab;
     
-    const paneProds = document.getElementById("pane-productos");
-    const paneProvs = document.getElementById("pane-proveedores");
-    const btnProds = document.getElementById("tab-prods-btn");
-    const btnProvs = document.getElementById("tab-provs-btn");
+    const panes = {
+        'productos': document.getElementById("pane-productos"),
+        'proveedores': document.getElementById("pane-proveedores"),
+        'personal': document.getElementById("pane-personal")
+    };
+    
+    const btns = {
+        'productos': document.getElementById("tab-prods-btn"),
+        'proveedores': document.getElementById("tab-provs-btn"),
+        'personal': document.getElementById("tab-personal-btn")
+    };
 
-    if (tab === 'productos') {
-        paneProds.style.display = "block";
-        paneProvs.style.display = "none";
-        btnProds.classList.add("active");
-        btnProvs.classList.remove("active");
-    } else {
-        paneProds.style.display = "none";
-        paneProvs.style.display = "block";
-        btnProds.classList.remove("active");
-        btnProvs.classList.add("active");
+    Object.keys(panes).forEach(k => {
+        if (panes[k]) panes[k].style.display = (k === tab) ? "block" : "none";
+        if (btns[k]) {
+            if (k === tab) btns[k].classList.add("active");
+            else btns[k].classList.remove("active");
+        }
+    });
+
+    if (tab === 'personal') {
+        renderPersonal();
     }
 }
 
@@ -1237,3 +1298,169 @@ window.abrirBulkEditModal = abrirBulkEditModal;
 window.cerrarBulkEditModal = cerrarBulkEditModal;
 window.guardarBulkEdit = guardarBulkEdit;
 window.borrarSeleccionadosConfirmar = borrarSeleccionadosConfirmar;
+window.switchTab = switchTab;
+
+// --- 9. GESTIÓN DE PERSONAL ---
+async function renderPersonal() {
+    const grid = document.getElementById("personal-grid");
+    const loading = document.getElementById("personal-loading");
+    
+    grid.innerHTML = "";
+    grid.style.display = "none";
+    loading.style.display = "block";
+
+    try {
+        const snap = await db.collection("personal").get();
+        loading.style.display = "none";
+        grid.style.display = "grid";
+
+        if (snap.empty) return;
+
+        let optionsHtml = "";
+        const personalList = [];
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            personalList.push(data);
+            optionsHtml += `<option value="${data.email}">${data.nombre}</option>`;
+        });
+
+        // Guardamos opciones para el modal
+        window.opcionesPersonalHtml = optionsHtml;
+
+        personalList.sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'')).forEach(p => {
+            const card = document.createElement("div");
+            card.className = "supplier-card";
+            card.innerHTML = `
+                <div class="card-header">
+                    <h4 class="card-title">${p.nombre}</h4>
+                    <div class="card-subtitle" style="background:#f1f5f9; color:#475569;">${p.email}</div>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-card-action btn-edit" style="color: var(--danger); border-color: var(--danger);" onclick="abrirModalTransfer('${p.email}', '${p.nombre}')">
+                        <span class="material-icons-round">person_remove</span> Dar de baja
+                    </button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+
+    } catch (e) {
+        console.error("Error al cargar personal", e);
+        loading.style.display = "none";
+        showToast("Error al cargar personal", "error");
+    }
+}
+
+async function altaPersonal() {
+    const emailInput = document.getElementById("nuevo-personal-email");
+    const nameInput = document.getElementById("nuevo-personal-nombre");
+    const email = emailInput.value.trim().toLowerCase();
+    const name = nameInput.value.trim();
+
+    if (!email || !name) {
+        showToast("Rellena email y nombre", "error");
+        return;
+    }
+
+    try {
+        await db.collection("personal").doc(email).set({
+            email: email,
+            nombre: name,
+            rol: "worker"
+        });
+        showToast("Encargado añadido con éxito", "success");
+        emailInput.value = "";
+        nameInput.value = "";
+        
+        // Actualizar responsable lists globally
+        await inicializarGestor(); 
+        renderPersonal();
+    } catch (e) {
+        console.error("Error al dar de alta", e);
+        showToast("Error al guardar", "error");
+    }
+}
+
+function abrirModalTransfer(email, nombre) {
+    document.getElementById("transfer-old-email").value = email;
+    document.getElementById("transfer-old-name").innerText = nombre;
+    
+    const select = document.getElementById("transfer-new-email");
+    select.innerHTML = window.opcionesPersonalHtml || "";
+    
+    // Remover a sí mismo de las opciones
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === email) {
+            select.remove(i);
+            break;
+        }
+    }
+
+    document.getElementById("modal-transfer-personal").classList.add("active");
+}
+
+function cerrarModalTransfer() {
+    document.getElementById("modal-transfer-personal").classList.remove("active");
+}
+
+async function confirmarTransferYBorrado() {
+    const oldEmail = document.getElementById("transfer-old-email").value;
+    const oldName = document.getElementById("transfer-old-name").innerText;
+    const newEmail = document.getElementById("transfer-new-email").value;
+    const selectEl = document.getElementById("transfer-new-email");
+    const newName = selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : "";
+
+    if (!newEmail) {
+        showToast("Selecciona un encargado destino", "error");
+        return;
+    }
+
+    const btn = document.querySelector("#modal-transfer-personal .btn-primary");
+    btn.disabled = true;
+    btn.innerText = "Traspasando...";
+
+    try {
+        const batch = db.batch();
+
+        // 1. Productos: cambiar responsable
+        const snapProds = await db.collectionGroup("productos").where("responsable", "==", oldName).get();
+        snapProds.forEach(doc => {
+            batch.update(doc.ref, { responsable: newName });
+        });
+
+        // 2. Proveedores: reemplazar oldName por newName
+        const snapProvs = await db.collection("proveedores").where("responsables", "array-contains", oldName).get();
+        snapProvs.forEach(doc => {
+            const data = doc.data();
+            let resp = data.responsables || [];
+            resp = resp.filter(r => r !== oldName);
+            if (!resp.includes(newName)) resp.push(newName);
+            batch.update(doc.ref, { responsables: resp });
+        });
+
+        // 3. Borrar de personal
+        batch.delete(db.collection("personal").doc(oldEmail));
+
+        await batch.commit();
+
+        showToast("Traspaso y baja completados", "success");
+        cerrarModalTransfer();
+        
+        await inicializarGestor(); 
+        renderPersonal();
+
+    } catch (e) {
+        console.error("Error en traspaso", e);
+        showToast("Error en el traspaso", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span class="material-icons-round" style="font-size: 18px;">delete_forever</span> Traspasar y Borrar`;
+    }
+}
+
+window.renderPersonal = renderPersonal;
+window.altaPersonal = altaPersonal;
+window.abrirModalTransfer = abrirModalTransfer;
+window.cerrarModalTransfer = cerrarModalTransfer;
+window.confirmarTransferYBorrado = confirmarTransferYBorrado;

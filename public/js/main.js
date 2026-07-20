@@ -70,10 +70,25 @@ function iniciarApp() {
 
             currentUser = userEmail.trim().toLowerCase().replace(/\s/g, '');
 
-            if (ADMIN_EMAILS.includes(currentUser)) userRole = "admin";
-            else userRole = "worker";
-
-            userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
+            try {
+                const personalDoc = await db.collection("personal").doc(currentUser).get();
+                if (personalDoc.exists) {
+                    const data = personalDoc.data();
+                    userRole = data.rol || "worker";
+                    userName = data.nombre || `Usuario (${currentUser})`;
+                } else {
+                    // Fallback para transición: si no está en Firebase, usar config.js
+                    if (ADMIN_EMAILS.includes(currentUser)) userRole = "admin";
+                    else userRole = "worker";
+                    userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
+                }
+            } catch (e) {
+                console.error("Error al cargar datos del usuario desde Firestore:", e);
+                // Fallback de emergencia
+                if (ADMIN_EMAILS.includes(currentUser)) userRole = "admin";
+                else userRole = "worker";
+                userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
+            }
 
             // --- CORRECCIÓN: Definimos displayName ---
             let displayName = userName;

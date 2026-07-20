@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     
     <!-- Custom Admin Styles -->
-    <link rel="stylesheet" href="css/admin.css?v=11.42">
+    <link rel="stylesheet" href="css/admin.css?v=11.43">
 </head>
 <body>
 
@@ -35,6 +35,9 @@
             </button>
             <button class="tab-btn" id="tab-provs-btn" onclick="switchTab('proveedores')">
                 <span class="material-icons-round">storefront</span> Proveedores
+            </button>
+            <button class="tab-btn" id="tab-personal-btn" onclick="switchTab('personal')">
+                <span class="material-icons-round">manage_accounts</span> Personal
             </button>
         </nav>
 
@@ -103,6 +106,24 @@
                 <span class="material-icons-round">storefront</span>
                 <p>No hay proveedores registrados.</p>
             </div>
+        </section>
+
+        <!-- ================= PESTAÑA: PERSONAL ================= -->
+        <section id="pane-personal" class="tab-pane" style="display: none;">
+            <div class="filter-card" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <input type="email" id="nuevo-personal-email" class="form-input" placeholder="Email del encargado" style="flex: 1; min-width: 200px;">
+                <input type="text" id="nuevo-personal-nombre" class="form-input" placeholder="Nombre (Ej: Carlos)" style="flex: 1; min-width: 150px;">
+                <button class="btn-primary" style="padding: 0 16px; min-width: 120px;" onclick="altaPersonal()">
+                    <span class="material-icons-round" style="font-size: 18px;">person_add</span> Dar Alta
+                </button>
+            </div>
+            
+            <div id="personal-loading" class="loading-view">
+                <div class="spinner"></div>
+                <p>Cargando personal...</p>
+            </div>
+
+            <div id="personal-grid" class="content-grid" style="display: none;"></div>
         </section>
 
         <!-- SECCIÓN DE RESPALDO/CSV (OCULTA POR DEFECTO) -->
@@ -286,6 +307,36 @@
         </div>
     </div>
 
+    <!-- MODAL TRASPASO DE RESPONSABLE -->
+    <div class="modal-overlay" id="modal-transfer-personal" onclick="if(event.target===this) cerrarModalTransfer()">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Traspasar y Dar de Baja</h2>
+                <button class="btn-close" onclick="cerrarModalTransfer()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 12px; font-size: 14px; color: var(--text-muted);">
+                    Selecciona al nuevo encargado que se quedará con los productos y permisos de <strong id="transfer-old-name"></strong>.
+                </p>
+                <input type="hidden" id="transfer-old-email">
+                <div class="form-group">
+                    <label class="form-label">Transferir a:</label>
+                    <select id="transfer-new-email" class="form-input">
+                        <!-- Opciones de personal -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-card-action" onclick="cerrarModalTransfer()">Cancelar</button>
+                <button class="btn-primary" onclick="confirmarTransferYBorrado()" style="background-color: var(--danger); border-color: var(--danger);">
+                    <span class="material-icons-round" style="font-size: 18px;">delete_forever</span> Traspasar y Borrar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- TOAST DE NOTIFICACIONES -->
     <div id="toast-container" class="toast-container">
         <div class="toast" id="toast-element">
@@ -300,7 +351,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <!-- Configuración del Proyecto e Inicialización -->
-    <script type="module" src="js/admin.js?v=11.42"></script>
+    <script type="module" src="js/admin.js?v=11.43"></script>
 
 </body>
 </html>
