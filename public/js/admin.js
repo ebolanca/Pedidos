@@ -1423,11 +1423,13 @@ async function confirmarTransferYBorrado() {
     try {
         const batch = db.batch();
 
-        // 1. Productos: cambiar responsable
-        const snapProds = await db.collectionGroup("productos").where("responsable", "==", oldName).get();
-        snapProds.forEach(doc => {
-            batch.update(doc.ref, { responsable: newName });
-        });
+        // 1. Productos: cambiar responsable (iterando proveedores para evitar error de índice en collectionGroup)
+        for (const prov of allSuppliers) {
+            const snapProds = await db.collection("proveedores").doc(prov.id).collection("productos").where("responsable", "==", oldName).get();
+            snapProds.forEach(doc => {
+                batch.update(doc.ref, { responsable: newName });
+            });
+        }
 
         // 2. Proveedores: reemplazar oldName por newName
         const snapProvs = await db.collection("proveedores").where("responsables", "array-contains", oldName).get();
