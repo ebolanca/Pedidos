@@ -1225,6 +1225,7 @@ window.abrirModalProveedor = abrirModalProveedor;
 window.cerrarModalProveedor = cerrarModalProveedor;
 window.guardarProveedor = guardarProveedor;
 window.filtrarCatalogo = filtrarCatalogo;
+window.renderProveedores = renderProveedores;
 window.borrarProductoConfirmar = borrarProductoConfirmar;
 window.borrarProveedorConfirmar = borrarProveedorConfirmar;
 window.procesarImportacion = procesarImportacion;
