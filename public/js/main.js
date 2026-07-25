@@ -138,6 +138,13 @@ function v8_entrarModoLector() {
     document.getElementById('app-mode-gestion').classList.add('hidden');
     // Reiniciamos el lector visual
     initV9_VisualMode();
+    
+    // Refrescamos la vista de Gestión actual por si hubo cambios de otro encargado
+    const provSelect = document.getElementById("v8-proveedor");
+    if (provSelect && provSelect.value) {
+        // Llamamos a cambiarProveedor para recargar los borradores y productos
+        v8_cambiarProveedor();
+    }
 }
 
 function v9_salirModoLector() {
