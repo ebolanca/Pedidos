@@ -23,7 +23,7 @@ import { ejecutarMantenimientoPedidos } from './modules/maintenance.js';
 // const CURRENT_CLIENT_VERSION = "11.15"; // COMENTADO POR REFACTOR
 
 
-let currentUser, userRole, userName, currentProv, currentLectorProv;
+let currentUser, userRole, userName, currentProv, currentLectorProv, userAllowedNames = [];
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
 let suggestions = {};
 let v8_filter = 'todos', v8_expanded = true;
@@ -90,9 +90,41 @@ function iniciarApp() {
                 userName = MAPA_USUARIOS[currentUser] || `Usuario (${currentUser})`;
             }
 
-            // --- CORRECCIÓN: Definimos displayName ---
+            userAllowedNames = [userName];
+
+            // Buscar si el usuario actual está cubriendo a alguien de vacaciones
+            try {
+                const snapSustitutos = await db.collection("personal").where("sustituto", "==", userName).get();
+                if (!snapSustitutos.empty) {
+                    snapSustitutos.forEach(doc => {
+                        const data = doc.data();
+                        if (data.nombre && !userAllowedNames.includes(data.nombre)) {
+                            userAllowedNames.push(data.nombre);
+                        }
+                    });
+                    const cubriendoA = userAllowedNames.filter(n => n !== userName).join(", ");
+                    if (cubriendoA) {
+                        console.log(`ℹ️ Usuario ${userName} está cubriendo las vacaciones de: ${cubriendoA}`);
+                        let avisoEl = document.getElementById("v8-vacacionesAviso");
+                        if (!avisoEl) {
+                            const header = document.querySelector(".header, .v8-header, header, .app-header");
+                            if (header) {
+                                avisoEl = document.createElement("div");
+                                avisoEl.id = "v8-vacacionesAviso";
+                                avisoEl.style.cssText = "background: #fff7ed; color: #c2410c; padding: 8px 12px; font-size: 13px; font-weight: 600; text-align: center; border-bottom: 1px solid #ffedd5; display: flex; align-items: center; justify-content: center; gap: 6px;";
+                                header.after(avisoEl);
+                            }
+                        }
+                        if (avisoEl) {
+                            avisoEl.innerHTML = `<span class="material-icons-round" style="font-size: 18px;">beach_access</span> Cubriendo vacaciones de: <strong>${cubriendoA}</strong> (Acceso a sus productos y proveedores habilitado)`;
+                        }
+                    }
+                }
+            } catch (errSust) {
+                console.warn("Error al verificar sustituciones por vacaciones:", errSust);
+            }
+
             let displayName = userName;
-            // (Se ha eliminado la línea de Moisés)
 
             if (document.getElementById("v8-userDisplay")) {
                 document.getElementById("v8-userDisplay").innerText = displayName;
@@ -201,13 +233,13 @@ async function v8_cargarProveedores() {
     try {
         const snap = await db.collection("proveedores").get();
         const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const userNormalized = normalize(userName);
+        const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
         let list = [];
 
         for (const doc of snap.docs) {
             const d = doc.data();
             const resp = d.responsables || [];
-            const isAllowed = Array.isArray(resp) && resp.some(r => normalize(r).includes(userNormalized));
+            const isAllowed = Array.isArray(resp) && resp.some(r => allowedNames.some(name => normalize(r).includes(normalize(name))));
 
             if (userRole === 'admin') {
                 list.push(doc.id);
@@ -219,7 +251,7 @@ async function v8_cargarProveedores() {
                 snapProds.forEach(pDoc => {
                     const pData = pDoc.data();
                     const pResp = pData.responsable ? pData.responsable.trim() : "Todos";
-                    if (pResp === "Todos" || normalize(pResp).includes(userNormalized)) {
+                    if (pResp === "Todos" || allowedNames.some(name => normalize(pResp).includes(normalize(name)))) {
                         hasOwnProduct = true;
                     }
                 });
@@ -680,7 +712,8 @@ function v8_renderTabla() {
         const p = allProducts.find(x => x.id === id);
         if (p) {
             const r = p.responsable ? p.responsable.trim() : "Todos";
-            const isVisible = (userRole === 'admin' || r === "Todos" || r.includes(userName));
+            const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
+            const isVisible = (userRole === 'admin' || r === "Todos" || allowedNames.some(name => r.includes(name)));
 
             if (!isVisible) itemsOcultos++;
 
@@ -725,10 +758,9 @@ function v8_renderTabla() {
         if (userRole === 'admin' || r === "Todos") {
              isVisible = true;
         } else {
-             // Normalización para evitar fallo por tildes (Aaron vs Aarón)
              const rNorm = normalize(r);
-             const uNorm = normalize(userName);
-             if (rNorm.includes(uNorm)) isVisible = true;
+             const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
+             if (allowedNames.some(name => rNorm.includes(normalize(name)))) isVisible = true;
         }
 
         if (!isVisible) return;
@@ -1339,7 +1371,8 @@ async function v9_cargarProveedoresResumen() {
                                     if (activePids.includes(pDoc.id)) {
                                         const pData = pDoc.data();
                                         const pResp = pData.responsable ? pData.responsable.trim() : "Todos";
-                                        if (pResp === "Todos" || normalize(pResp).includes(userNormalized)) {
+                                        const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
+                                        if (pResp === "Todos" || allowedNames.some(name => normalize(pResp).includes(normalize(name)))) {
                                             hasOwnProduct = true;
                                         }
                                     }
@@ -1491,8 +1524,8 @@ function v9_renderListaLector() {
             } else {
                 const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const rNorm = normalize(r);
-                const uNorm = normalize(userName);
-                if (rNorm.includes(uNorm)) isVisible = true;
+                const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
+                if (allowedNames.some(name => rNorm.includes(normalize(name)))) isVisible = true;
             }
 
             if (!isVisible) continue;

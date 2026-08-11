@@ -1331,12 +1331,39 @@ async function renderPersonal() {
         personalList.sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'')).forEach(p => {
             const card = document.createElement("div");
             card.className = "supplier-card";
+
+            let vacacionBadge = "";
+            let vacacionBtn = "";
+
+            if (p.sustituto) {
+                vacacionBadge = `
+                    <div style="margin-top: 8px;">
+                        <span class="badge badge-orange" style="font-weight:600; display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 6px; background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5;">
+                            <span class="material-icons-round" style="font-size: 16px;">beach_access</span> De vacaciones → Sustituye: <strong>${p.sustituto}</strong>
+                        </span>
+                    </div>
+                `;
+                vacacionBtn = `
+                    <button class="btn-card-action" style="color: #d97706; border-color: #fcd34d; background: #fffbeb;" onclick="quitarSustituto('${p.email}')">
+                        <span class="material-icons-round">event_available</span> Finalizar Vacaciones
+                    </button>
+                `;
+            } else {
+                vacacionBtn = `
+                    <button class="btn-card-action" style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" onclick="abrirModalSustituto('${p.email}', '${p.nombre}')">
+                        <span class="material-icons-round">beach_access</span> Asignar Vacaciones
+                    </button>
+                `;
+            }
+
             card.innerHTML = `
                 <div class="card-header">
                     <h4 class="card-title">${p.nombre}</h4>
                     <div class="card-subtitle" style="background:#f1f5f9; color:#475569;">${p.email}</div>
                 </div>
-                <div class="card-actions">
+                ${vacacionBadge}
+                <div class="card-actions" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+                    ${vacacionBtn}
                     <button class="btn-card-action btn-edit" style="color: var(--danger); border-color: var(--danger);" onclick="abrirModalTransfer('${p.email}', '${p.nombre}')">
                         <span class="material-icons-round">person_remove</span> Dar de baja
                     </button>
@@ -1478,8 +1505,78 @@ async function confirmarTransferYBorrado() {
     }
 }
 
+function abrirModalSustituto(email, nombre) {
+    document.getElementById("sustituto-target-email").value = email;
+    document.getElementById("sustituto-target-name").innerText = nombre;
+    
+    const select = document.getElementById("sustituto-select-email");
+    select.innerHTML = window.opcionesPersonalHtml || "";
+    
+    // Remover a sí mismo de las opciones
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === email) {
+            select.remove(i);
+            break;
+        }
+    }
+
+    document.getElementById("modal-sustituto-personal").classList.add("active");
+}
+
+function cerrarModalSustituto() {
+    document.getElementById("modal-sustituto-personal").classList.remove("active");
+}
+
+async function confirmarGuardarSustituto() {
+    const targetEmail = document.getElementById("sustituto-target-email").value;
+    const targetName = document.getElementById("sustituto-target-name").innerText;
+    const selectEl = document.getElementById("sustituto-select-email");
+    const subEmail = selectEl.value;
+    const subName = selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : "";
+
+    if (!subEmail || !subName) {
+        showToast("Selecciona un encargado sustituto", "error");
+        return;
+    }
+
+    try {
+        await db.collection("personal").doc(targetEmail).update({
+            sustituto: subName,
+            sustitutoEmail: subEmail
+        });
+
+        showToast(`${subName} asignado/a como sustituto/a de ${targetName}`, "success");
+        cerrarModalSustituto();
+        renderPersonal();
+    } catch (e) {
+        console.error("Error al asignar sustituto", e);
+        showToast("Error al guardar sustituto", "error");
+    }
+}
+
+async function quitarSustituto(email) {
+    if (!confirm("¿Finalizar vacaciones y retirar el sustituto asignado?")) return;
+
+    try {
+        await db.collection("personal").doc(email).update({
+            sustituto: firebase.firestore.FieldValue.delete(),
+            sustitutoEmail: firebase.firestore.FieldValue.delete()
+        });
+
+        showToast("Vacaciones finalizadas. Sustitución retirada.", "success");
+        renderPersonal();
+    } catch (e) {
+        console.error("Error al quitar sustituto", e);
+        showToast("Error al actualizar estado", "error");
+    }
+}
+
 window.renderPersonal = renderPersonal;
 window.altaPersonal = altaPersonal;
 window.abrirModalTransfer = abrirModalTransfer;
 window.cerrarModalTransfer = cerrarModalTransfer;
 window.confirmarTransferYBorrado = confirmarTransferYBorrado;
+window.abrirModalSustituto = abrirModalSustituto;
+window.cerrarModalSustituto = cerrarModalSustituto;
+window.confirmarGuardarSustituto = confirmarGuardarSustituto;
+window.quitarSustituto = quitarSustituto;
