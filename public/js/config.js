@@ -27,4 +27,7 @@ const MAPA_USUARIOS = {
     "josemartin7s.f@gmail.com": "Jose",
 };
 
-export { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS };
+// Compatibilidad con versiones cacheadas del cliente
+const PROVEEDORES_LECTOR = [];
+
+export { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS, PROVEEDORES_LECTOR };
