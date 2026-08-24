@@ -1711,42 +1711,55 @@ function initVersionWatcher() {
     });
 }
 
-function forceUpdate(newVersion) {
-    // 1. Borrar todas las cachés
-    if ('caches' in window) {
-        caches.keys().then((names) => {
-            names.forEach(name => caches.delete(name));
-        });
+let isForceUpdating = false;
+
+async function forceUpdate(newVersion) {
+    if (isForceUpdating) return;
+    isForceUpdating = true;
+
+    // 1. Pantalla de bloqueo visual
+    let alertDiv = document.getElementById('force-update-modal');
+    if (!alertDiv) {
+        alertDiv = document.createElement('div');
+        alertDiv.id = 'force-update-modal';
+        alertDiv.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(33, 37, 41, 0.98); z-index: 99999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; font-family: sans-serif; text-align: center; padding: 20px;
+        `;
+
+        alertDiv.innerHTML = `
+            <span class="material-icons-round" style="font-size: 64px; margin-bottom: 20px; color: #4ade80;">rocket_launch</span>
+            <h2 style="font-size: 24px; font-weight: 700; margin: 0;">Actualizando...</h2>
+            <p style="opacity: 0.8; margin-top: 10px; font-size: 16px;">Instalando versión ${newVersion}</p>
+            <div class="spinner-update" style="margin-top: 20px; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #fff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+        `;
+        document.body.appendChild(alertDiv);
     }
 
-    // 2. Desregistrar Service Workers
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((regs) => {
-            for (let registration of regs) registration.unregister();
-        });
+    try {
+        // 2. Desregistrar Service Workers
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+        }
+
+        // 3. Borrar todas las cachés
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+    } catch (e) {
+        console.warn("Error al limpiar caché:", e);
     }
 
-    // 3. Pantalla de bloqueo visual
-    const alertDiv = document.createElement('div');
-    alertDiv.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(33, 37, 41, 0.98); z-index: 9999;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: white; font-family: sans-serif; text-align: center;
-    `;
-
-    // Estilos de animación inline
-    alertDiv.innerHTML = `
-        <span class="material-icons-round" style="font-size: 64px; margin-bottom: 20px; color: #4ade80;">rocket_launch</span>
-        <h2 style="font-size: 24px; font-weight: 700; margin: 0;">Actualizando...</h2>
-        <p style="opacity: 0.8; margin-top: 10px;">Instalando versión ${newVersion}</p>
-        <div class="spinner-update" style="margin-top: 20px; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #fff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
-    `;
-    document.body.appendChild(alertDiv);
-
-    // 4. Recarga forzada
-    setTimeout(() => { window.location.reload(true); }, 2000);
+    // 4. Redirección con timestamp para romper caché HTTP en móviles
+    setTimeout(() => {
+        const cleanUrl = window.location.origin + window.location.pathname + '?_t=' + Date.now();
+        window.location.replace(cleanUrl);
+    }, 1200);
 }
 
 // --- ARRANQUE DE LA APP ---

@@ -1,6 +1,6 @@
 /* public/sw.js */
 // CAMBIA ESTE NOMBRE PARA FORZAR LA ACTUALIZACIÓN EN LOS MÓVILES
-const CACHE_NAME = 'rail-app-cache-v11.51';
+const CACHE_NAME = 'rail-app-cache-v11.52';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -11,6 +11,10 @@ const ASSETS_TO_CACHE = [
   './js/main.js',
   './js/config.js',
   './js/admin.js',
+  './js/modules/constants.js',
+  './js/modules/firebase-init.js',
+  './js/modules/utils.js',
+  './js/modules/maintenance.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'https://fonts.googleapis.com/icon?family=Material+Icons+Round'
 ];
