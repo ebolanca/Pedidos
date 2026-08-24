@@ -3,7 +3,7 @@
    ============================================================= */
 
 // IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, PROVEEDORES_LECTOR, MAPA_USUARIOS } from './config.js'; // Config privada existente
+import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js'; // Config privada existente
 import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.40';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js';
 import { db, auth } from './modules/firebase-init.js';
@@ -156,11 +156,6 @@ document.addEventListener('DOMContentLoaded', iniciarApp);
 function cerrarSesion() {
     haptic();
     auth.signOut().then(() => window.location.reload());
-}
-
-function cargarConfigLector() {
-    const saved = localStorage.getItem("rail_lector_whitelist");
-    if (saved) whitelistLector = new Set(JSON.parse(saved));
 }
 
 // --- FUNCIONES NUEVAS PARA CAMBIO DE MODO ---
@@ -1339,12 +1334,19 @@ async function v9_cargarProveedoresResumen() {
     const cont = document.getElementById("v9-prov-list");
     cont.innerHTML = "<div style='text-align:center;padding:20px'>Buscando pedidos...</div>";
 
-    // LISTA DE SEGURIDAD: Si falla la importación de config.js, usamos esta.
-    const LISTA_PROVS = (typeof PROVEEDORES_LECTOR !== 'undefined' && PROVEEDORES_LECTOR.length > 0)
-        ? PROVEEDORES_LECTOR
-        : ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
+    const DEFAULT_LECTOR_PROVS = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
 
     try {
+        // Cargar proveedores habilitados en el lector desde Firestore
+        const snapProvsConfig = await db.collection("proveedores").get();
+        const lectorProvsSet = new Set();
+        snapProvsConfig.forEach(pDoc => {
+            const pData = pDoc.data();
+            if (pData.enLector === true || (pData.enLector === undefined && DEFAULT_LECTOR_PROVS.includes(pDoc.id))) {
+                lectorProvsSet.add(pDoc.id);
+            }
+        });
+
         const snap = await db.collection("borradores").get();
         const provs = [];
 
@@ -1352,7 +1354,7 @@ async function v9_cargarProveedoresResumen() {
         const userNormalized = normalize(userName);
 
         for (const doc of snap.docs) {
-            if (LISTA_PROVS.includes(doc.id)) {
+            if (lectorProvsSet.has(doc.id)) {
                 if (userRole === 'admin') {
                     provs.push(doc.id);
                 } else {

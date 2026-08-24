@@ -323,7 +323,44 @@ body {
     background: #fee2e2;
 }
 
+/* --- BOTÓN ACTIVAR/DESACTIVAR LECTOR EN TARJETA PROVEEDOR --- */
+.btn-lector-card {
+    position: absolute;
+    top: 12px;
+    right: 50px;
+    border: 1px solid transparent;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-lector-card.active {
+    background: #dcfce7;
+    color: #16a34a;
+    border-color: #86efac;
+    box-shadow: 0 1px 3px rgba(22, 163, 74, 0.2);
+}
+
+.btn-lector-card.inactive {
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+}
+
+.btn-lector-card:hover {
+    transform: scale(1.08);
+}
+
 /* --- TARJETA DE PROVEEDOR --- */
+.supplier-card .card-title {
+    padding-right: 86px; /* Espacio para el botón de lector y el de papelera */
+}
+
 .supplier-card .responsibles-list {
     margin-top: 8px;
     margin-bottom: 16px;

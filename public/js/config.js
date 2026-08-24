@@ -27,7 +27,4 @@ const MAPA_USUARIOS = {
     "josemartin7s.f@gmail.com": "Jose",
 };
 
-// 4. Proveedores (IGUAL)
-const PROVEEDORES_LECTOR = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
-
-export { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS, PROVEEDORES_LECTOR };
+export { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS };

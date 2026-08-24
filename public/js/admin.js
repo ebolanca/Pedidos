@@ -7,6 +7,7 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 
 // Variables de estado local
+const DEFAULT_LECTOR_PROVS = ["Chinos", "Inde", "Vecino", "Mercadona", "Mercamadrid", "Supeco", "Makro"];
 let allProducts = [];
 let allSuppliers = [];
 let uniqueCategories = [];
@@ -122,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.40";
+        const CLIENT_VERSION = "11.49";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -247,9 +248,16 @@ async function cargarDatos() {
         const responsablesSet = new Set();
         snapProvs.forEach(doc => {
             const data = doc.data();
+            let isEnLector = data.enLector;
+            if (isEnLector === undefined) {
+                isEnLector = DEFAULT_LECTOR_PROVS.includes(doc.id);
+                // Guardar en Firestore para persistir el valor migrado
+                doc.ref.set({ enLector: isEnLector }, { merge: true }).catch(console.error);
+            }
             allSuppliers.push({
                 id: doc.id,
-                ...data
+                ...data,
+                enLector: isEnLector
             });
             if (data.responsables && Array.isArray(data.responsables)) {
                 data.responsables.forEach(r => {
@@ -481,8 +489,14 @@ function renderProveedores() {
 
         // Obtener recuento de productos
         const count = allProducts.filter(p => p.supplierId === s.id).length;
+        const isLectorActive = s.enLector === true;
 
         card.innerHTML = `
+            <button class="btn-lector-card ${isLectorActive ? 'active' : 'inactive'}" 
+                    title="${isLectorActive ? 'Activo en Lector (Click para desactivar)' : 'Inactivo en Lector (Click para activar)'}" 
+                    onclick="event.stopPropagation(); toggleProveedorLector('${s.id}', this)">
+                <span class="material-icons-round" style="font-size: 18px">qr_code_scanner</span>
+            </button>
             <button class="btn-delete-card" style="position: absolute; top: 12px; right: 12px; border: none; background: #fee2e2; color: #ef4444; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer;" onclick="event.stopPropagation(); borrarProveedorConfirmar('${s.id}')">
                 <span class="material-icons-round" style="font-size: 18px">delete</span>
             </button>
@@ -852,6 +866,35 @@ async function borrarProveedorConfirmar(provId) {
         } catch (e) {
             console.error("Error al borrar proveedor:", e);
             showToast("Error al eliminar proveedor", "error");
+        }
+    }
+}
+
+async function toggleProveedorLector(provId, btnEl) {
+    const prov = allSuppliers.find(s => s.id === provId);
+    if (!prov) return;
+
+    const newState = !prov.enLector;
+    prov.enLector = newState;
+
+    // Actualización visual inmediata
+    if (btnEl) {
+        btnEl.className = `btn-lector-card ${newState ? 'active' : 'inactive'}`;
+        btnEl.title = newState ? 'Activo en Lector (Click para desactivar)' : 'Inactivo en Lector (Click para activar)';
+    }
+
+    try {
+        await db.collection("proveedores").doc(provId).set({
+            enLector: newState
+        }, { merge: true });
+        showToast(newState ? `"${provId}" añadido al lector` : `"${provId}" retirado del lector`, "success");
+    } catch (e) {
+        console.error("Error al actualizar estado del lector:", e);
+        showToast("Error al guardar cambio del lector", "error");
+        prov.enLector = !newState;
+        if (btnEl) {
+            btnEl.className = `btn-lector-card ${!newState ? 'active' : 'inactive'}`;
+            btnEl.title = !newState ? 'Activo en Lector (Click para desactivar)' : 'Inactivo en Lector (Click para activar)';
         }
     }
 }
@@ -1289,6 +1332,7 @@ window.filtrarCatalogo = filtrarCatalogo;
 window.renderProveedores = renderProveedores;
 window.borrarProductoConfirmar = borrarProductoConfirmar;
 window.borrarProveedorConfirmar = borrarProveedorConfirmar;
+window.toggleProveedorLector = toggleProveedorLector;
 window.procesarImportacion = procesarImportacion;
 
 // Nuevas exportaciones para acciones masivas
