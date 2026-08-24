@@ -1,6 +1,34 @@
 /* temp_sync_version.js - REST API VERSION */
-const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const https = require('https');
+const { execSync } = require('child_process');
+
+function getFirebaseToken() {
+    // 1. Intentar leer desde configstore de firebase-tools
+    const configPaths = [
+        path.join(process.env.USERPROFILE || '', '.config', 'configstore', 'firebase-tools.json'),
+        path.join(process.env.HOME || '', '.config', 'configstore', 'firebase-tools.json')
+    ];
+
+    for (const p of configPaths) {
+        if (p && fs.existsSync(p)) {
+            try {
+                const conf = JSON.parse(fs.readFileSync(p, 'utf8'));
+                if (conf.tokens && conf.tokens.access_token) {
+                    return conf.tokens.access_token;
+                }
+            } catch (e) {}
+        }
+    }
+
+    // 2. Fallback al comando CLI
+    try {
+        return execSync('firebase auth:print-access-token').toString().trim();
+    } catch (e) {
+        throw new Error("No se pudo obtener el token de Firebase CLI.");
+    }
+}
 
 async function syncVersion() {
     const VERSION = "11.51";
@@ -9,12 +37,8 @@ async function syncVersion() {
     console.log(`🚀 Sincronizando versión ${VERSION} con Firestore (REST API)...`);
 
     try {
-        // 1. Obtener token del CLI
-        console.log("🔑 Obteniendo token de acceso de Firebase CLI...");
-        const token = execSync('firebase auth:print-access-token').toString().trim();
+        const token = getFirebaseToken();
 
-        // 2. Preparar el cuerpo de la petición para parchear el documento config
-        // Documento: projects/PROJECT_ID/databases/(default)/documents/system/config
         const data = JSON.stringify({
             fields: {
                 version: { stringValue: VERSION },
@@ -56,7 +80,7 @@ async function syncVersion() {
         req.end();
 
     } catch (error) {
-        console.error("❌ ERROR fatal al obtener token o ejecutar script:");
+        console.error("❌ ERROR fatal al sincronizar versión:");
         console.error(error.message);
         process.exit(1);
     }
