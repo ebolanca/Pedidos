@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.52";
+        const CLIENT_VERSION = "11.53";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
