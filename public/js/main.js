@@ -1109,7 +1109,11 @@ function v8_historialSimple() {
     listContent.innerHTML = "<div style='text-align:center;padding:10px;color:#999'>Cargando...</div>";
 
     // USAR CLASE ACTIVE
-    document.getElementById("modalHistorialSimple").classList.add("active");
+    const modalHist = document.getElementById("modalHistorialSimple");
+    if (modalHist) {
+        modalHist.style.display = "";
+        modalHist.classList.add("active");
+    }
 
     db.collection("pedidos")
         .where("proveedor", "==", currentProv)
@@ -1195,8 +1199,17 @@ function v8_eliminarPedidoHistorial(idPedido, esDashboard = false) {
 async function v8_mostrarModalDetalle(pedido) {
     currentHistoryPedido = pedido;
 
-    document.getElementById("modalHistorialSimple").style.display = "none";
-    document.getElementById("modalDetallePedido").style.display = "flex";
+    const modalHist = document.getElementById("modalHistorialSimple");
+    const modalDet = document.getElementById("modalDetallePedido");
+
+    if (modalHist) {
+        modalHist.style.display = "";
+        modalHist.classList.remove("active");
+    }
+    if (modalDet) {
+        modalDet.style.display = "";
+        modalDet.classList.add("active");
+    }
 
     let fechaStr = "";
     try { fechaStr = pedido.fecha.toDate().toLocaleDateString("es-ES", { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { }
@@ -1301,7 +1314,11 @@ function v8_cargarPedidoHistorial() {
         v8_renderTabla();
         v8_escribirEnBorrador();
 
-        document.getElementById("modalDetallePedido").style.display = "none";
+        const modalDet = document.getElementById("modalDetallePedido");
+        if (modalDet) {
+            modalDet.style.display = "";
+            modalDet.classList.remove("active");
+        }
         alert("✅ Pedido cargado correctamente.");
     }, 500);
 }
@@ -1741,11 +1758,13 @@ async function v8_verDetalleDesdeDashboard_v2(idUnique) {
     haptic();
     console.log("🔍 Ver detalle dashboard:", idUnique);
 
+    const modalDet = document.getElementById("modalDetallePedido");
+    if (modalDet) {
+        modalDet.style.display = "";
+        modalDet.classList.add("active");
+    }
     document.getElementById("detalleTitulo").innerText = "Cargando...";
     document.getElementById("detallePedidoContent").innerHTML = "<div style='text-align:center;padding:20px'>Cargando...</div>";
-
-    // USAR CLASE ACTIVE
-    document.getElementById("modalDetallePedido").classList.add("active");
 
     try {
         const snap = await db.collection("pedidos").where("id_unico", "==", idUnique).limit(1).get();
@@ -1755,54 +1774,13 @@ async function v8_verDetalleDesdeDashboard_v2(idUnique) {
         }
 
         const data = snap.docs[0].data();
-        let html = "";
-
-        document.getElementById("detalleTitulo").innerText = `Pedido ${data.proveedor}`;
-
-        // Renderizar items
-        const items = data.items || data.pedido || {};
-        for (const [id, cant] of Object.entries(items)) {
-            let nombreMostrar = id;
-
-            // 1. Intentar buscar en allProducts (si está cargado)
-            const pFound = allProducts.find(p => p.id === id);
-            if (pFound) {
-                nombreMostrar = pFound.nombre;
-            }
-            // 2. Si no, intentar limpiar el ID (ej: MERCAMADRID_aguacates -> Aguacates)
-            else {
-                const parts = id.split('_');
-                if (parts.length >= 2) {
-                    // Asumimos formato PROV_Nombre
-                    let rawName = parts.slice(1).join(' ');
-                    // Capitalizar primera letra
-                    if (rawName) nombreMostrar = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-                }
-            }
-
-            html += `
-             <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee">
-                <span style="font-weight:500">${nombreMostrar}</span>
-                <span style="font-weight:700">${cant}</span>
-             </div>`;
-        }
-
-        // Mostrar notas si hay
-        if (data.notas && Object.keys(data.notas).length > 0) {
-            html += `<div style="margin-top:15px; background:#fff3cd; padding:10px; border-radius:8px">`;
-            for (const [prod, nota] of Object.entries(data.notas)) {
-                html += `<div><b>${prod}:</b> ${nota}</div>`;
-            }
-            html += `</div>`;
-        }
-
-        document.getElementById("detallePedidoContent").innerHTML = html;
-
+        await v8_mostrarModalDetalle(data);
     } catch (e) {
         console.error(e);
         document.getElementById("detallePedidoContent").innerHTML = "Error cargando detalle: " + e.message;
     }
 }
+
 
 
 function v8_renderSkeleton() {

@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
-    <link rel="stylesheet" href="css/styles.css?v=11.50">
+    <link rel="stylesheet" href="css/styles.css?v=11.51">
 </head>
 
 <body>
@@ -267,7 +267,7 @@
 
     </div>
 
-    <div id="modalHistorialSimple" class="modal-overlay">
+    <div id="modalHistorialSimple" class="modal-overlay" onclick="if(event.target===this) this.classList.remove('active')">
         <div class="modal-content-simple">
             <div class="modal-header-simple">
                 <span>Historial <span id="historialProvName">...</span></span>
@@ -280,7 +280,7 @@
         </div>
     </div>
 
-    <div id="modalDetallePedido" class="modal-overlay">
+    <div id="modalDetallePedido" class="modal-overlay" onclick="if(event.target===this) this.classList.remove('active')">
         <div class="modal-content-simple">
             <div class="modal-header-simple">
                 <span id="detalleTitulo">Detalle Pedido</span>
@@ -299,7 +299,7 @@
         </div>
     </div>
 
-    <div id="modalPrecioHistorial" class="modal-overlay">
+    <div id="modalPrecioHistorial" class="modal-overlay" onclick="if(event.target===this) this.classList.remove('active')">
         <div class="modal-content-simple">
             <div class="modal-header-simple">
                 <span id="tituloHistorialPrecio">Historial de Precios</span>
@@ -327,7 +327,7 @@
         }
     </script>
 
-    <script type="module" src="js/main.js?v=11.50"></script>
+    <script type="module" src="js/main.js?v=11.51"></script>
 </body>
 
 </html>
