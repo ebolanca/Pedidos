@@ -3,11 +3,11 @@
    ============================================================= */
 
 // IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.53';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.53';
-import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.53';
-import { db, auth } from './modules/firebase-init.js?v=11.53';
-import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.53';
+import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.54';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.54';
+import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.54';
+import { db, auth } from './modules/firebase-init.js?v=11.54';
+import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.54';
 
 
 
@@ -150,8 +150,12 @@ function iniciarApp() {
     });
 }
 
-// Iniciamos al cargar el DOM
-document.addEventListener('DOMContentLoaded', iniciarApp);
+// Iniciamos de forma segura
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarApp);
+} else {
+    iniciarApp();
+}
 
 function cerrarSesion() {
     haptic();

@@ -9,13 +9,13 @@ if (!firebase.apps.length) {
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Habilitar persistencia offline de forma segura
-db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-    if (err.code === 'failed-precondition') {
-        console.warn("Múltiples pestañas abiertas, persistencia en pestaña principal.");
-    } else if (err.code === 'unimplemented') {
-        console.warn("Navegador no soporta persistencia offline.");
-    }
-});
+// Habilitar persistencia offline de forma segura sin bloquear la app
+try {
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        console.warn("Persistencia offline no disponible:", err ? (err.message || err.code) : err);
+    });
+} catch (e) {
+    console.warn("No se pudo habilitar persistencia:", e ? e.message : e);
+}
 
 export { db, auth };
