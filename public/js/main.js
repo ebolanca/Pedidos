@@ -3,11 +3,11 @@
    ============================================================= */
 
 // IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.56';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.56';
-import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.56';
-import { db, auth } from './modules/firebase-init.js?v=11.56';
-import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.56';
+import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.57';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.57';
+import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.57';
+import { db, auth } from './modules/firebase-init.js?v=11.57';
+import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.57';
 
 
 
@@ -568,7 +568,7 @@ function v8_editarNota(id, nombreProd) {
 async function v8_actualizarPrecioProducto(idProd, rawValue) {
     if (!currentProv) return;
 
-    let val = parseFloat(rawValue.replace(',', '.'));
+    let val = parseFloat(rawValue.toString().replace(',', '.'));
     if (isNaN(val)) val = 0;
     const nuevoPrecio = val.toFixed(2);
 
@@ -716,8 +716,8 @@ function v8_renderTabla() {
 
             if (!isVisible) itemsOcultos++;
 
-            if (p.precio) {
-                const precioBase = parseFloat(p.precio.replace(',', '.')) || 0;
+            if (p.precio !== undefined && p.precio !== null && p.precio !== "") {
+                const precioBase = typeof p.precio === 'number' ? p.precio : (parseFloat(p.precio.toString().replace(',', '.')) || 0);
                 const ivaPct = parseFloat(p.iva) || 0;
 
                 const precioConIva = precioBase * (1 + (ivaPct / 100));
@@ -755,11 +755,11 @@ function v8_renderTabla() {
         
         let isVisible = false;
         if (userRole === 'admin' || r === "Todos") {
-             isVisible = true;
+            isVisible = true;
         } else {
-             const rNorm = normalize(r);
-             const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
-             if (allowedNames.some(name => rNorm.includes(normalize(name)))) isVisible = true;
+            const rNorm = normalize(r);
+            const allowedNames = (userAllowedNames && userAllowedNames.length > 0) ? userAllowedNames : [userName];
+            if (allowedNames.some(name => rNorm.includes(normalize(name)))) isVisible = true;
         }
 
         if (!isVisible) return;
@@ -812,8 +812,8 @@ function v8_renderTabla() {
             let sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"></div>`;
             if (suggestions[p.id] > 0 && !p.esManual) sugHtml = `<div class="v8-suggestion" id="sug_${p.id}"><button class="v8-btn-sug" onclick="v8_setQty('${p.id}', ${suggestions[p.id]})">${suggestions[p.id]}</button></div>`;
 
-            const precioBaseStr = p.precio || "";
-            const pesoVal = p.peso || "";
+            const precioBaseStr = (p.precio !== undefined && p.precio !== null) ? p.precio.toString() : "";
+            const pesoVal = (p.peso !== undefined && p.peso !== null) ? p.peso.toString() : "";
             const ivaVal = parseFloat(p.iva) || 0;
 
             let htmlPrecio = "";
@@ -821,7 +821,7 @@ function v8_renderTabla() {
 
             // CALCULO DE TOTALES VISUALES
             if (qty > 0 && precioBaseStr) {
-                const pNum = parseFloat(precioBaseStr.replace(',', '.'));
+                const pNum = typeof p.precio === 'number' ? p.precio : parseFloat(precioBaseStr.replace(',', '.'));
                 const precioFinalUnitario = pNum * (1 + (ivaVal / 100));
                 const multiplicador = (pesoVal && parseFloat(pesoVal) > 0) ? parseFloat(pesoVal) : parseFloat(qty);
 
@@ -836,8 +836,8 @@ function v8_renderTabla() {
             if (esAdmin) {
                 let semaforoHtml = "";
                 if (p.precioAnterior && precioBaseStr) {
-                    const currentP = parseFloat(precioBaseStr.replace(',', '.'));
-                    const prevP = parseFloat(p.precioAnterior.replace(',', '.'));
+                    const currentP = typeof p.precio === 'number' ? p.precio : parseFloat(precioBaseStr.replace(',', '.'));
+                    const prevP = typeof p.precioAnterior === 'number' ? p.precioAnterior : parseFloat(p.precioAnterior.toString().replace(',', '.'));
                     if (!isNaN(currentP) && !isNaN(prevP)) {
                         if (currentP > prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#dc3545; margin-left:4px">thumb_down</span>`;
                         else if (currentP < prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#28a745; margin-left:4px">thumb_up</span>`;
@@ -858,7 +858,7 @@ function v8_renderTabla() {
 
                 let labelPrecioFinal = "";
                 if (precioBaseStr && ivaVal > 0) {
-                    const baseNum = parseFloat(precioBaseStr.replace(',', '.'));
+                    const baseNum = typeof p.precio === 'number' ? p.precio : parseFloat(precioBaseStr.replace(',', '.'));
                     if (!isNaN(baseNum)) {
                         const final = (baseNum * (1 + ivaVal / 100)).toFixed(2);
                         labelPrecioFinal = `<div class="v8-price-final-label" id="lblUnit_${p.id}">Total: ${final}€</div>`;
