@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.54";
+        const CLIENT_VERSION = "11.55";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -1624,3 +1624,423 @@ window.abrirModalSustituto = abrirModalSustituto;
 window.cerrarModalSustituto = cerrarModalSustituto;
 window.confirmarGuardarSustituto = confirmarGuardarSustituto;
 window.quitarSustituto = quitarSustituto;
+
+// ==========================================================================
+// 📥 SINCRONIZACIÓN DE PRECIOS CON ESCANDALLO (GOOGLE SHEETS)
+// ==========================================================================
+
+const ESCANDALLO_CSV_URL = 'https://docs.google.com/spreadsheets/d/1B77f3gIVm-jx87fwy4nxM_8ZJp37V0eir6lyu_4ERME/gviz/tq?tqx=out:csv&gid=1786108103';
+const SUPERMERCADOS_LIST = ['supeco', 'hiper usera', 'mercadona'];
+
+let syncAnalisisResult = {
+    cambiados: [],
+    iguales: [],
+    noEncontrados: []
+};
+let syncFiltroActivo = 'cambiados';
+
+function normalizarTextoEscandallo(str) {
+    if (!str) return '';
+    return str.toString()
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
+        .replace(/[^a-z0-9]/g, ' ') // solo alfanumérico
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function parsearPrecioEscandallo(str) {
+    if (!str) return null;
+    const cleaned = str.toString().replace(/[€\s"]/g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return (isNaN(num) || num <= 0) ? null : Math.round(num * 100) / 100;
+}
+
+function parsearCSVEscandallo(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    const rows = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Parse CSV handling quotes and commas
+        const cols = [];
+        let inQuotes = false;
+        let cur = '';
+        for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (ch === '"') {
+                if (inQuotes && line[c+1] === '"') { cur += '"'; c++; }
+                else { inQuotes = !inQuotes; }
+            } else if (ch === ',' && !inQuotes) {
+                cols.push(cur.trim());
+                cur = '';
+            } else {
+                cur += ch;
+            }
+        }
+        cols.push(cur.trim());
+        
+        const nombre = cols[0] ? cols[0].replace(/^"|"$/g, '').trim() : '';
+        const precioSinIva = cols[3] ? parsearPrecioEscandallo(cols[3].replace(/^"|"$/g, '')) : null;
+        const precioConIva = cols[4] ? parsearPrecioEscandallo(cols[4].replace(/^"|"$/g, '')) : null;
+        const proveedor = cols[7] ? cols[7].replace(/^"|"$/g, '').trim() : '';
+        const categoria = cols[8] ? cols[8].replace(/^"|"$/g, '').trim() : '';
+        
+        if (nombre && proveedor) {
+            rows.push({
+                nombre,
+                normNombre: normalizarTextoEscandallo(nombre),
+                proveedor,
+                normProveedor: normalizarTextoEscandallo(proveedor),
+                precioSinIva,
+                precioConIva,
+                categoria
+            });
+        }
+    }
+    return rows;
+}
+
+async function abrirModalSyncEscandallo() {
+    const modal = document.getElementById("modal-sync-escandallo");
+    if (!modal) return;
+    
+    modal.classList.add("active");
+    document.getElementById("sync-step-loading").style.display = "block";
+    document.getElementById("sync-step-preview").style.display = "none";
+    document.getElementById("sync-footer").style.display = "none";
+    document.getElementById("sync-loading-text").innerText = "Descargando datos de Escandallo el Raíl...";
+
+    try {
+        const res = await fetch(ESCANDALLO_CSV_URL);
+        if (!res.ok) throw new Error("No se pudo descargar la hoja (Status: " + res.status + ")");
+        
+        const csvText = await res.text();
+        const sheetRows = parsearCSVEscandallo(csvText);
+        console.log(`📊 Escandallo descargado: ${sheetRows.length} productos válidos.`);
+
+        // Analizar coincidencias con los productos de la app
+        analizarCatalogoVsEscandallo(sheetRows);
+
+        document.getElementById("sync-step-loading").style.display = "none";
+        document.getElementById("sync-step-preview").style.display = "block";
+        document.getElementById("sync-footer").style.display = "flex";
+
+        filtrarVistaSync('cambiados');
+    } catch (e) {
+        console.error("Error al sincronizar con Escandallo:", e);
+        document.getElementById("sync-step-loading").innerHTML = `
+            <div style="color: var(--danger); padding: 20px;">
+                <span class="material-icons-round" style="font-size: 48px; margin-bottom: 10px;">error</span>
+                <p style="font-weight: 700; font-size: 16px;">Error al conectar con Google Sheets</p>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">${e.message}</p>
+                <button class="btn-card-action" style="margin-top: 16px;" onclick="cerrarModalSyncEscandallo()">Cerrar</button>
+            </div>
+        `;
+    }
+}
+
+function cerrarModalSyncEscandallo() {
+    const modal = document.getElementById("modal-sync-escandallo");
+    if (modal) modal.classList.remove("active");
+}
+
+function analizarCatalogoVsEscandallo(sheetRows) {
+    const cambiados = [];
+    const iguales = [];
+    const noEncontrados = [];
+
+    // Agrupar filas de la hoja por proveedor normalizado para búsqueda rápida
+    const sheetByProv = new Map();
+    for (const row of sheetRows) {
+        if (!sheetByProv.has(row.normProveedor)) {
+            sheetByProv.set(row.normProveedor, []);
+        }
+        sheetByProv.get(row.normProveedor).push(row);
+    }
+
+    // Iterar únicamente por los productos que existen en NUESTRA app
+    for (const appProd of allProducts) {
+        const prodProv = appProd.supplierId || appProd.proveedor || '';
+        const normProv = normalizarTextoEscandallo(prodProv);
+        const normProdName = normalizarTextoEscandallo(appProd.nombre);
+
+        // Buscar las filas de ese proveedor en la hoja
+        let candidates = sheetByProv.get(normProv) || [];
+        if (candidates.length === 0) {
+            for (const [sProv, list] of sheetByProv.entries()) {
+                if (normProv && (sProv.includes(normProv) || normProv.includes(sProv))) {
+                    candidates = list;
+                    break;
+                }
+            }
+        }
+
+        // Buscar el producto que coincida con el nombre dentro de ese proveedor
+        let match = null;
+        if (candidates.length > 0) {
+            // 1. Coincidencia exacta de nombre
+            match = candidates.find(c => c.normNombre === normProdName);
+            // 2. Si no, coincidencia donde uno contenga al otro si la longitud es similar
+            if (!match) {
+                match = candidates.find(c => {
+                    return (c.normNombre.includes(normProdName) || normProdName.includes(c.normNombre)) &&
+                           Math.abs(c.normNombre.length - normProdName.length) <= 6;
+                });
+            }
+        }
+
+        if (match) {
+            // Determinar si es supermercado (con IVA) o resto (sin IVA)
+            const isSuper = SUPERMERCADOS_LIST.some(s => normProv.includes(s));
+            const nuevoPrecio = isSuper ? match.precioConIva : match.precioSinIva;
+            const precioActual = parseFloat(appProd.precio) || 0;
+
+            if (nuevoPrecio !== null && nuevoPrecio > 0) {
+                if (Math.abs(nuevoPrecio - precioActual) >= 0.005) {
+                    cambiados.push({
+                        appProd,
+                        nombre: appProd.nombre,
+                        proveedor: prodProv,
+                        precioActual,
+                        nuevoPrecio,
+                        diff: nuevoPrecio - precioActual,
+                        tipoIva: isSuper ? 'Con IVA' : 'Sin IVA',
+                        sheetName: match.nombre,
+                        selected: true
+                    });
+                } else {
+                    iguales.push({
+                        appProd,
+                        nombre: appProd.nombre,
+                        proveedor: prodProv,
+                        precio: nuevoPrecio,
+                        tipoIva: isSuper ? 'Con IVA' : 'Sin IVA'
+                    });
+                }
+            } else {
+                noEncontrados.push({ appProd, nombre: appProd.nombre, proveedor: prodProv, razon: 'Sin precio en hoja' });
+            }
+        } else {
+            noEncontrados.push({ appProd, nombre: appProd.nombre, proveedor: prodProv, razon: 'No encontrado en hoja' });
+        }
+    }
+
+    syncAnalisisResult = { cambiados, iguales, noEncontrados };
+
+    // Actualizar contadores
+    document.getElementById("stat-count-changed").innerText = cambiados.length;
+    document.getElementById("stat-count-same").innerText = iguales.length;
+    document.getElementById("stat-count-notfound").innerText = noEncontrados.length;
+}
+
+function filtrarVistaSync(tipo) {
+    syncFiltroActivo = tipo;
+    
+    // Marcar activo en cards
+    document.getElementById("stat-btn-cambiados").classList.toggle("active", tipo === 'cambiados');
+    document.getElementById("stat-btn-iguales").classList.toggle("active", tipo === 'iguales');
+    document.getElementById("stat-btn-noencontrados").classList.toggle("active", tipo === 'no_encontrados');
+
+    const titleEl = document.getElementById("sync-list-title");
+    const btnConfirm = document.getElementById("btn-confirm-sync");
+
+    if (tipo === 'cambiados') {
+        titleEl.innerText = `Productos con Cambio de Precio (${syncAnalisisResult.cambiados.length})`;
+        btnConfirm.style.display = "inline-flex";
+        renderListaCambiados();
+    } else if (tipo === 'iguales') {
+        titleEl.innerText = `Productos con Mismo Precio al Día (${syncAnalisisResult.iguales.length})`;
+        btnConfirm.style.display = "none";
+        renderListaIguales();
+    } else if (tipo === 'no_encontrados') {
+        titleEl.innerText = `Productos de la App no encontrados en Escandallo (${syncAnalisisResult.noEncontrados.length})`;
+        btnConfirm.style.display = "none";
+        renderListaNoEncontrados();
+    }
+}
+
+function renderListaCambiados() {
+    const listContainer = document.getElementById("sync-items-list");
+    if (syncAnalisisResult.cambiados.length === 0) {
+        listContainer.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">🎉 ¡Todos los precios de tu catálogo coinciden exactamente con el Escandallo!</div>`;
+        document.getElementById("btn-confirm-sync").disabled = true;
+        return;
+    }
+
+    document.getElementById("btn-confirm-sync").disabled = false;
+    actualizarTextoBotonSync();
+
+    let html = '';
+    syncAnalisisResult.cambiados.forEach((item, idx) => {
+        const diffText = (item.diff > 0 ? `+${item.diff.toFixed(2)}` : item.diff.toFixed(2)) + ' €';
+        const diffClass = item.diff > 0 ? 'diff-up' : 'diff-down';
+
+        html += `
+            <div class="sync-item-row">
+                <input type="checkbox" id="chk-sync-${idx}" ${item.selected ? 'checked' : ''} onchange="toggleSyncItem(${idx}, this.checked)" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--success);">
+                <div class="sync-item-info">
+                    <div class="sync-item-name">${item.nombre}</div>
+                    <div class="sync-item-supplier">
+                        <span class="sync-item-supplier-tag">${item.proveedor}</span>
+                        <span>• ${item.tipoIva}</span>
+                    </div>
+                </div>
+                <div class="sync-item-prices">
+                    <span class="price-old">${item.precioActual.toFixed(2)} €</span>
+                    <span class="material-icons-round" style="font-size: 14px; color: #94a3b8;">arrow_forward</span>
+                    <span class="price-new">${item.nuevoPrecio.toFixed(2)} €</span>
+                    <span class="price-diff-badge ${diffClass}">${diffText}</span>
+                </div>
+            </div>
+        `;
+    });
+    listContainer.innerHTML = html;
+}
+
+function renderListaIguales() {
+    const listContainer = document.getElementById("sync-items-list");
+    if (syncAnalisisResult.iguales.length === 0) {
+        listContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">No hay productos en esta sección.</div>`;
+        return;
+    }
+
+    let html = '';
+    syncAnalisisResult.iguales.forEach(item => {
+        html += `
+            <div class="sync-item-row">
+                <span class="material-icons-round" style="color: #10b981; font-size: 18px;">check_circle</span>
+                <div class="sync-item-info">
+                    <div class="sync-item-name">${item.nombre}</div>
+                    <div class="sync-item-supplier">
+                        <span class="sync-item-supplier-tag">${item.proveedor}</span>
+                        <span>• ${item.tipoIva}</span>
+                    </div>
+                </div>
+                <div class="sync-item-prices">
+                    <span class="price-new">${item.precio.toFixed(2)} €</span>
+                    <span class="price-diff-badge diff-none">Al día</span>
+                </div>
+            </div>
+        `;
+    });
+    listContainer.innerHTML = html;
+}
+
+function renderListaNoEncontrados() {
+    const listContainer = document.getElementById("sync-items-list");
+    if (syncAnalisisResult.noEncontrados.length === 0) {
+        listContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">Todos los productos de tu catálogo están en la hoja.</div>`;
+        return;
+    }
+
+    let html = '';
+    syncAnalisisResult.noEncontrados.forEach(item => {
+        html += `
+            <div class="sync-item-row">
+                <span class="material-icons-round" style="color: #f59e0b; font-size: 18px;">help_outline</span>
+                <div class="sync-item-info">
+                    <div class="sync-item-name">${item.nombre}</div>
+                    <div class="sync-item-supplier">
+                        <span class="sync-item-supplier-tag">${item.proveedor}</span>
+                        <span>• ${item.razon}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    listContainer.innerHTML = html;
+}
+
+function toggleSyncItem(index, isChecked) {
+    if (syncAnalisisResult.cambiados[index]) {
+        syncAnalisisResult.cambiados[index].selected = isChecked;
+    }
+    actualizarTextoBotonSync();
+}
+
+function actualizarTextoBotonSync() {
+    const count = syncAnalisisResult.cambiados.filter(c => c.selected).length;
+    const btnText = document.getElementById("btn-confirm-sync-text");
+    const btn = document.getElementById("btn-confirm-sync");
+    if (btnText) btnText.innerText = `Aplicar ${count} Cambios de Precio`;
+    if (btn) btn.disabled = count === 0;
+}
+
+async function ejecutarAplicarCambiosPrecios() {
+    const itemsToUpdate = syncAnalisisResult.cambiados.filter(c => c.selected);
+    if (itemsToUpdate.length === 0) {
+        showToast("No hay productos seleccionados para actualizar", "error");
+        return;
+    }
+
+    if (!confirm(`¿Confirmas la actualización de ${itemsToUpdate.length} precios en Firestore?\n\nSe registrará automáticamente en el historial de precios de cada producto.`)) {
+        return;
+    }
+
+    const btn = document.getElementById("btn-confirm-sync");
+    btn.disabled = true;
+    btn.innerHTML = `<div class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-right: 6px;"></div> Guardando...`;
+
+    try {
+        let batch = db.batch();
+        let ops = 0;
+        let totalUpdated = 0;
+
+        for (const item of itemsToUpdate) {
+            const p = item.appProd;
+            const provId = p.supplierId || p.proveedor;
+            const ref = db.collection("proveedores").doc(provId).collection("productos").doc(p.id);
+
+            const hist = Array.isArray(p.historialPrecios) ? [...p.historialPrecios] : [];
+            hist.push({
+                fecha: new Date().toISOString(),
+                precio: item.nuevoPrecio
+            });
+            if (hist.length > 20) hist.shift();
+
+            batch.update(ref, {
+                precio: item.nuevoPrecio,
+                historialPrecios: hist,
+                ultimaActualizacionPrecio: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Actualizar objeto local en memoria
+            p.precio = item.nuevoPrecio;
+            p.historialPrecios = hist;
+
+            ops++;
+            totalUpdated++;
+
+            if (ops >= 400) {
+                await batch.commit();
+                batch = db.batch();
+                ops = 0;
+            }
+        }
+
+        if (ops > 0) {
+            await batch.commit();
+        }
+
+        showToast(`✅ ${totalUpdated} precios actualizados correctamente`, "success");
+        cerrarModalSyncEscandallo();
+        
+        // Recargar vista de productos en pantalla
+        filtrarCatalogo();
+    } catch (e) {
+        console.error("Error al aplicar cambios de precios:", e);
+        showToast("Error al guardar precios: " + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span class="material-icons-round" style="font-size: 18px;">check_circle</span> <span id="btn-confirm-sync-text">Aplicar Cambios</span>`;
+    }
+}
+
+window.abrirModalSyncEscandallo = abrirModalSyncEscandallo;
+window.cerrarModalSyncEscandallo = cerrarModalSyncEscandallo;
+window.filtrarVistaSync = filtrarVistaSync;
+window.toggleSyncItem = toggleSyncItem;
+window.ejecutarAplicarCambiosPrecios = ejecutarAplicarCambiosPrecios;

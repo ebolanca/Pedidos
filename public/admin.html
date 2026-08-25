@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     
     <!-- Custom Admin Styles -->
-    <link rel="stylesheet" href="css/admin.css?v=11.54">
+    <link rel="stylesheet" href="css/admin.css?v=11.55">
 </head>
 <body>
 
@@ -50,6 +50,10 @@
                         <span class="material-icons-round search-icon">search</span>
                         <input type="text" id="prod-search" class="search-input" placeholder="Buscar por nombre..." oninput="filtrarCatalogo()">
                     </div>
+                    <button type="button" id="btn-sync-escandallo" class="form-input btn-sync-escandallo" onclick="abrirModalSyncEscandallo()" title="Sincronizar precios desde Google Sheets">
+                        <span class="material-icons-round" style="font-size: 18px; color: var(--success);">sync</span>
+                        <span class="btn-sync-label">Sincronizar Precios</span>
+                    </button>
                     <button type="button" id="btn-toggle-select-mode" class="form-input" style="width: auto; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: pointer; border-color: var(--border); background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 13px;" onclick="toggleSelectionMode()">
                         <span class="material-icons-round" id="icon-toggle-select-mode" style="font-size: 18px; color: var(--text-muted);">check_box_outline_blank</span>
                         <span id="lbl-toggle-select-mode">Seleccionar</span>
@@ -367,6 +371,67 @@
         </div>
     </div>
 
+    <!-- MODAL: SINCRONIZACIÓN DE PRECIOS ESCANDALLO (GOOGLE SHEETS) -->
+    <div class="modal-overlay" id="modal-sync-escandallo" onclick="if(event.target===this) cerrarModalSyncEscandallo()">
+        <div class="modal-content modal-sync-content" style="max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons-round" style="color: var(--success); font-size: 24px;">table_chart</span>
+                    <h3 class="modal-title">Sincronizar Precios desde Escandallo</h3>
+                </div>
+                <button class="modal-close" onclick="cerrarModalSyncEscandallo()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+
+            <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 16px;">
+                <!-- Estado Cargando -->
+                <div id="sync-step-loading" style="text-align: center; padding: 40px 20px;">
+                    <div class="spinner" style="margin: 0 auto 16px;"></div>
+                    <p id="sync-loading-text" style="font-weight: 600; color: var(--text-main); font-size: 15px;">Descargando datos de Escandallo el Raíl...</p>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Comparando proveedor y nombre con tu catálogo de pedidos</p>
+                </div>
+
+                <!-- Estado Vista Previa -->
+                <div id="sync-step-preview" style="display: none;">
+                    <div class="sync-stats-grid">
+                        <div class="sync-stat-card stat-updated" onclick="filtrarVistaSync('cambiados')" id="stat-btn-cambiados">
+                            <span class="sync-stat-num" id="stat-count-changed">0</span>
+                            <span class="sync-stat-lbl">Con Cambio</span>
+                        </div>
+                        <div class="sync-stat-card stat-identical" onclick="filtrarVistaSync('iguales')" id="stat-btn-iguales">
+                            <span class="sync-stat-num" id="stat-count-same">0</span>
+                            <span class="sync-stat-lbl">Mismo Precio</span>
+                        </div>
+                        <div class="sync-stat-card stat-missing" onclick="filtrarVistaSync('no_encontrados')" id="stat-btn-noencontrados">
+                            <span class="sync-stat-num" id="stat-count-notfound">0</span>
+                            <span class="sync-stat-lbl">No en Hoja</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; flex-wrap: wrap; gap: 8px;">
+                        <span id="sync-list-title" style="font-size: 13px; font-weight: 700; color: var(--text-main);">Productos a Actualizar</span>
+                        <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 6px;">
+                            <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">Supermercados: Con IVA</span>
+                            <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">Resto: Sin IVA</span>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor scroll de items -->
+                    <div id="sync-items-list" class="sync-items-scroll"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer" id="sync-footer" style="display: none; flex-shrink: 0;">
+                <button type="button" class="btn-card-action" onclick="cerrarModalSyncEscandallo()">Cancelar</button>
+                <button type="button" id="btn-confirm-sync" class="btn-primary" onclick="ejecutarAplicarCambiosPrecios()" style="background-color: var(--success); border-color: var(--success);">
+                    <span class="material-icons-round" style="font-size: 18px;">check_circle</span>
+                    <span id="btn-confirm-sync-text">Aplicar Cambios</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- TOAST DE NOTIFICACIONES -->
     <div id="toast-container" class="toast-container">
         <div class="toast" id="toast-element">
@@ -381,7 +446,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <!-- Configuración del Proyecto e Inicialización -->
-    <script type="module" src="js/admin.js?v=11.54"></script>
+    <script type="module" src="js/admin.js?v=11.55"></script>
 
 </body>
 </html>

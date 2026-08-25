@@ -821,3 +821,195 @@ body {
 body.has-bulk-bar .fab-btn {
     bottom: 96px; /* Desplazar hacia arriba para no tapar */
 }
+
+/* ==========================================================================
+   SINCRONIZACIÓN DE PRECIOS ESCANDALLO (GOOGLE SHEETS)
+   ========================================================================== */
+.btn-sync-escandallo {
+    width: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    border-color: #a7f3d0 !important;
+    background: #ecfdf5 !important;
+    color: #065f46 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    transition: var(--transition) !important;
+}
+
+.btn-sync-escandallo:hover {
+    background: #d1fae5 !important;
+    border-color: #6ee7b7 !important;
+}
+
+@media (max-width: 600px) {
+    .btn-sync-label {
+        display: none;
+    }
+}
+
+.sync-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.sync-stat-card {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.sync-stat-card:hover, .sync-stat-card.active {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.sync-stat-card.stat-updated {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+}
+.sync-stat-card.stat-updated.active {
+    outline: 2px solid #22c55e;
+}
+.sync-stat-card.stat-updated .sync-stat-num {
+    color: #16a34a;
+}
+
+.sync-stat-card.stat-identical {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+.sync-stat-card.stat-identical.active {
+    outline: 2px solid #64748b;
+}
+.sync-stat-card.stat-identical .sync-stat-num {
+    color: #475569;
+}
+
+.sync-stat-card.stat-missing {
+    border-color: #fed7aa;
+    background: #fff7ed;
+}
+.sync-stat-card.stat-missing.active {
+    outline: 2px solid #ea580c;
+}
+.sync-stat-card.stat-missing .sync-stat-num {
+    color: #c2410c;
+}
+
+.sync-stat-num {
+    display: block;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.sync-stat-lbl {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.sync-items-scroll {
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #ffffff;
+}
+
+.sync-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    gap: 10px;
+    transition: background 0.15s ease;
+}
+
+.sync-item-row:last-child {
+    border-bottom: none;
+}
+
+.sync-item-row:hover {
+    background: #f8fafc;
+}
+
+.sync-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.sync-item-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sync-item-supplier {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sync-item-supplier-tag {
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.sync-item-prices {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.price-old {
+    color: #94a3b8;
+    text-decoration: line-through;
+    font-weight: 500;
+}
+
+.price-new {
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.price-diff-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.diff-up {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.diff-down {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.diff-none {
+    background: #f1f5f9;
+    color: #64748b;
+}
