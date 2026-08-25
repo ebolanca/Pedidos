@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.57";
+        const CLIENT_VERSION = "11.58";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -1695,8 +1695,12 @@ function parsearCSVEscandallo(csvText) {
         cols.push(cur.trim());
         
         const nombre = cols[0] ? cols[0].replace(/^"|"$/g, '').trim() : '';
+        const formatoCantidad = cols[1] ? cols[1].replace(/^"|"$/g, '').trim() : '';
+        const formatoUnidad = cols[2] ? cols[2].replace(/^"|"$/g, '').trim() : '';
         const precioSinIva = cols[3] ? parsearPrecioEscandallo(cols[3].replace(/^"|"$/g, '')) : null;
         const precioConIva = cols[4] ? parsearPrecioEscandallo(cols[4].replace(/^"|"$/g, '')) : null;
+        const precioKgSinIva = cols[5] ? parsearPrecioEscandallo(cols[5].replace(/^"|"$/g, '')) : null;
+        const precioKgConIva = cols[6] ? parsearPrecioEscandallo(cols[6].replace(/^"|"$/g, '')) : null;
         const proveedor = cols[7] ? cols[7].replace(/^"|"$/g, '').trim() : '';
         const categoria = cols[8] ? cols[8].replace(/^"|"$/g, '').trim() : '';
         
@@ -1707,8 +1711,12 @@ function parsearCSVEscandallo(csvText) {
                 normNombre: normalizarTextoEscandallo(nombre),
                 proveedor,
                 normProveedor: normalizarTextoEscandallo(proveedor),
+                formatoCantidad,
+                formatoUnidad,
                 precioSinIva,
                 precioConIva,
+                precioKgSinIva,
+                precioKgConIva,
                 ivaCalculado,
                 categoria
             });
@@ -1814,6 +1822,17 @@ function analizarCatalogoVsEscandallo(sheetRows) {
             const ivaActual = (appProd.iva !== undefined && appProd.iva !== null) ? parseInt(appProd.iva) : null;
             const nuevoIva = match.ivaCalculado;
 
+            const escandalloInfo = {
+                cantidad: match.formatoCantidad || '',
+                unidad: match.formatoUnidad || '',
+                precioSinIva: match.precioSinIva,
+                precioConIva: match.precioConIva,
+                precioKgSinIva: match.precioKgSinIva,
+                precioKgConIva: match.precioKgConIva,
+                proveedor: match.proveedor,
+                categoria: match.categoria
+            };
+
             if (nuevoPrecio !== null && nuevoPrecio > 0) {
                 const hayCambioPrecio = Math.abs(nuevoPrecio - precioActual) >= 0.005;
                 const hayCambioIva = (nuevoIva !== null && ivaActual !== nuevoIva);
@@ -1829,6 +1848,7 @@ function analizarCatalogoVsEscandallo(sheetRows) {
                         tipoIva: isSuper ? 'Con IVA' : 'Sin IVA',
                         ivaActual,
                         nuevoIva,
+                        escandalloInfo,
                         sheetName: match.nombre,
                         selected: true
                     });
@@ -1839,6 +1859,7 @@ function analizarCatalogoVsEscandallo(sheetRows) {
                         proveedor: prodProv,
                         precio: nuevoPrecio,
                         iva: nuevoIva,
+                        escandalloInfo,
                         tipoIva: isSuper ? 'Con IVA' : 'Sin IVA'
                     });
                 }
@@ -2044,6 +2065,10 @@ async function ejecutarAplicarCambiosPrecios() {
                 updateData.iva = item.nuevoIva;
                 p.iva = item.nuevoIva;
             }
+            if (item.escandalloInfo) {
+                updateData.escandalloInfo = item.escandalloInfo;
+                p.escandalloInfo = item.escandalloInfo;
+            }
 
             batch.update(ref, updateData);
 
@@ -2136,6 +2161,10 @@ async function sincronizarEscandalloSilencioso(lunesStr) {
                 if (item.nuevoIva !== null && item.nuevoIva !== undefined) {
                     updateData.iva = item.nuevoIva;
                     p.iva = item.nuevoIva;
+                }
+                if (item.escandalloInfo) {
+                    updateData.escandalloInfo = item.escandalloInfo;
+                    p.escandalloInfo = item.escandalloInfo;
                 }
 
                 batch.update(ref, updateData);

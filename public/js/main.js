@@ -3,11 +3,11 @@
    ============================================================= */
 
 // IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.57';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.57';
-import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.57';
-import { db, auth } from './modules/firebase-init.js?v=11.57';
-import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.57';
+import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.58';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.58';
+import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.58';
+import { db, auth } from './modules/firebase-init.js?v=11.58';
+import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.58';
 
 
 
@@ -662,25 +662,109 @@ function v8_verHistorialPrecios(idProd) {
     const p = allProducts.find(x => x.id === idProd);
     if (!p) return;
 
+    const modal = document.getElementById("modalPrecioHistorial");
+    if (!modal) return;
+
+    document.getElementById("tituloHistorialPrecio").innerText = `📈 Historial: ${p.nombre}`;
     const listaDiv = document.getElementById("listaPreciosHistorial");
     listaDiv.innerHTML = "";
 
     const history = p.historialPrecios || [];
     if (history.length === 0) {
-        listaDiv.innerHTML = "<div style='padding:20px; text-align:center; color:#999'>No hay historial de cambios.</div>";
+        listaDiv.innerHTML = "<div style='padding:25px; text-align:center; color:#94a3b8; font-size:13px;'>No hay cambios de precio registrados aún.</div>";
     } else {
+        let html = '';
         [...history].reverse().forEach(h => {
-            const date = new Date(h.fecha).toLocaleDateString("es-ES", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-            listaDiv.innerHTML += `
-                <div class="price-row">
-                    <span class="price-date">${date}</span>
-                    <span class="price-val">${h.precio}€</span>
+            const date = new Date(h.fecha).toLocaleDateString("es-ES", { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const precioVal = typeof h.precio === 'number' ? h.precio.toFixed(2) : parseFloat(h.precio).toFixed(2);
+            html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid #f1f5f9; font-size:13px;">
+                    <span style="color:#64748b;">${date}</span>
+                    <span style="font-weight:700; color:#0f172a; font-size:14px; background:#f8fafc; padding:2px 8px; border-radius:6px; border:1px solid #e2e8f0;">${precioVal} €</span>
                 </div>
             `;
         });
+        listaDiv.innerHTML = html;
     }
 
-    document.getElementById("modalPrecioHistorial").style.display = "flex";
+    modal.classList.add("active");
+}
+
+function v8_verInfoEscandallo(idProd) {
+    const p = allProducts.find(x => x.id === idProd);
+    if (!p) return;
+
+    const modal = document.getElementById("modalEscandalloInfo");
+    if (!modal) return;
+
+    document.getElementById("tituloEscandalloInfo").innerText = p.nombre;
+    const contentDiv = document.getElementById("contenidoEscandalloInfo");
+
+    const esc = p.escandalloInfo || {};
+    const precioBase = typeof p.precio === 'number' ? p.precio : (parseFloat(p.precio) || 0);
+    const ivaVal = parseFloat(p.iva) || 0;
+    const precioConIva = (precioBase * (1 + ivaVal / 100)).toFixed(2);
+
+    const formatoCant = esc.cantidad || p.formatoCantidad || p.peso || '-';
+    const formatoUni = esc.unidad || p.formatoUnidad || p.unidad || '-';
+    const pSinIva = esc.precioSinIva ? `${parseFloat(esc.precioSinIva).toFixed(2)} €` : `${precioBase.toFixed(2)} €`;
+    const pConIva = esc.precioConIva ? `${parseFloat(esc.precioConIva).toFixed(2)} €` : `${precioConIva} €`;
+    const pKgSin = esc.precioKgSinIva ? `${parseFloat(esc.precioKgSinIva).toFixed(2)} €` : '-';
+    const pKgCon = esc.precioKgConIva ? `${parseFloat(esc.precioKgConIva).toFixed(2)} €` : '-';
+    const prov = esc.proveedor || p.supplierId || p.proveedor || currentProv || '-';
+    const cat = esc.categoria || p.categoria || '-';
+
+    contentDiv.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:13px; color:#334155;">
+            <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid #e2e8f0; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div>
+                    <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Proveedor</span>
+                    <span style="font-weight:700; color:#0f172a;">${prov}</span>
+                </div>
+                <div>
+                    <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Categoría</span>
+                    <span style="font-weight:600; color:#0f172a;">${cat}</span>
+                </div>
+            </div>
+
+            <div style="background:#f0fdf4; padding:12px; border-radius:12px; border:1px solid #bbf7d0; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div>
+                    <span style="display:block; font-size:11px; color:#166534; font-weight:600; text-transform:uppercase;">📦 Cantidad (Pack)</span>
+                    <span style="font-weight:700; color:#15803d; font-size:16px;">${formatoCant}</span>
+                </div>
+                <div>
+                    <span style="display:block; font-size:11px; color:#166534; font-weight:600; text-transform:uppercase;">🏷️ Unidad</span>
+                    <span style="font-weight:700; color:#15803d; font-size:16px;">${formatoUni}</span>
+                </div>
+            </div>
+
+            <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid #e2e8f0;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
+                    <div>
+                        <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Precio Sin IVA</span>
+                        <span style="font-weight:700; color:#16a34a; font-size:16px;">${pSinIva}</span>
+                    </div>
+                    <div>
+                        <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Precio Con IVA (${ivaVal}%)</span>
+                        <span style="font-weight:700; color:#0f172a; font-size:16px;">${pConIva}</span>
+                    </div>
+                </div>
+                ${(pKgSin !== '-' || pKgCon !== '-') ? `
+                <div style="border-top:1px dashed #cbd5e1; padding-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                        <span style="display:block; font-size:10px; color:#64748b;">Precio Kg/L (Sin IVA)</span>
+                        <span style="font-weight:600; font-size:12px; color:#475569;">${pKgSin}</span>
+                    </div>
+                    <div>
+                        <span style="display:block; font-size:10px; color:#64748b;">Precio Kg/L (Con IVA)</span>
+                        <span style="font-weight:600; font-size:12px; color:#475569;">${pKgCon}</span>
+                    </div>
+                </div>` : ''}
+            </div>
+        </div>
+    `;
+
+    modal.classList.add("active");
 }
 
 function v8_renderTabla() {
@@ -839,22 +923,13 @@ function v8_renderTabla() {
                     const currentP = typeof p.precio === 'number' ? p.precio : parseFloat(precioBaseStr.replace(',', '.'));
                     const prevP = typeof p.precioAnterior === 'number' ? p.precioAnterior : parseFloat(p.precioAnterior.toString().replace(',', '.'));
                     if (!isNaN(currentP) && !isNaN(prevP)) {
-                        if (currentP > prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#dc3545; margin-left:4px">thumb_down</span>`;
-                        else if (currentP < prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#28a745; margin-left:4px">thumb_up</span>`;
+                        if (currentP > prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#dc3545; margin-left:2px" title="Subió de precio">thumb_down</span>`;
+                        else if (currentP < prevP) semaforoHtml = `<span class="material-icons-round" style="font-size:16px; color:#28a745; margin-left:2px" title="Bajó de precio">thumb_up</span>`;
                     }
                 }
 
-                const historyIconHtml = `<span class="material-icons-round" style="font-size:16px; color:#007bff; margin-left:4px; cursor:pointer" onclick="event.stopPropagation(); v8_verHistorialPrecios('${p.id}')">show_chart</span>`;
-
-                const ivaOptions = [0, 4, 10, 21];
-                let optionsHtml = "";
-                ivaOptions.forEach(opt => {
-                    const sel = (ivaVal === opt) ? "selected" : "";
-                    const label = opt === 0 ? "IVA 0%" : `${opt}%`;
-                    optionsHtml += `<option value="${opt}" ${sel}>${label}</option>`;
-                });
-
-                const ivaSelectHtml = `<select class="v8-iva-select" onchange="v8_actualizarIVAProducto('${p.id}', this.value)" onclick="event.stopPropagation()">${optionsHtml}</select>`;
+                const escandalloInfoIconHtml = `<span class="material-icons-round" style="font-size:18px; color:#0284c7; margin-left:4px; cursor:pointer; vertical-align:middle;" title="Ver formato e info de Escandallo" onclick="event.stopPropagation(); v8_verInfoEscandallo('${p.id}')">info</span>`;
+                const historyIconHtml = `<span class="material-icons-round" style="font-size:18px; color:#6366f1; margin-left:4px; cursor:pointer; vertical-align:middle;" title="Ver historial de precios" onclick="event.stopPropagation(); v8_verHistorialPrecios('${p.id}')">show_chart</span>`;
 
                 let labelPrecioFinal = "";
                 if (precioBaseStr && ivaVal > 0) {
@@ -884,15 +959,14 @@ function v8_renderTabla() {
                     </div>
                     <div class="v8-row-details">
                         <span class="v8-prod-unit">${p.unidad || ''}</span>
-                        <div class="v8-admin-details-area">
-                            ${p.esManual ? '' : ivaSelectHtml}
-                            <input type="number" value="${pesoVal}" placeholder="Kg/Ud" class="v8-input-sm v8-input-weight" id="wei_${p.id}" onchange="v8_actualizarPesoProducto('${p.id}', this.value)" onclick="event.stopPropagation()">
+                        <div class="v8-admin-details-area" style="display:flex; align-items:center; gap:6px;">
                             <div style="display:flex; align-items:center">
                                 <span style="color:var(--success); font-size:12px; margin-right:1px">€</span>
                                 <input type="text" value="${precioBaseStr}" placeholder="Base" class="v8-input-sm v8-input-price" id="prc_${p.id}" onchange="v8_actualizarPrecioProducto('${p.id}', this.value)" onclick="event.stopPropagation()">
                             </div>
                             ${labelPrecioFinal}
                             ${semaforoHtml}
+                            ${escandalloInfoIconHtml}
                             ${historyIconHtml}
                             ${rowTotalHtml}
                         </div>
@@ -1845,6 +1919,7 @@ window.v8_editarNota = v8_editarNota;
 window.v8_actualizarPesoProducto = v8_actualizarPesoProducto;
 window.v8_actualizarPrecioProducto = v8_actualizarPrecioProducto;
 window.v8_verHistorialPrecios = v8_verHistorialPrecios;
+window.v8_verInfoEscandallo = v8_verInfoEscandallo;
 window.v8_actualizarIVAProducto = v8_actualizarIVAProducto;
 window.v8_setQty = v8_setQty;
 window.v8_toggleCat = v8_toggleCat;
