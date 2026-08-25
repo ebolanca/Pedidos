@@ -1,0 +1,22 @@
+name: Sincronización Automática de Precios (Lunes 09:00)
+
+on:
+  schedule:
+    # 07:00 UTC = 09:00 Hora Peninsular Española (CEST) todos los lunes
+    - cron: '0 7 * * 1'
+  workflow_dispatch: # Permite ejecutar manualmente si se desea desde GitHub
+
+jobs:
+  sync-prices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Ejecutar Sincronizador de Precios de Escandallo
+        run: node scripts/sync_escandallo_cron.js

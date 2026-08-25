@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.55";
+        const CLIENT_VERSION = "11.56";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -138,6 +138,9 @@ async function inicializarGestor() {
         
         // Ejecutar migración silenciosa en segundo plano para limpiar responsables antiguos
         setTimeout(ejecutarMigracionResponsables, 2000);
+
+        // Verificar sincronización automática de precios de los lunes
+        setTimeout(verificarYSincronizarPreciosLunesAutomatico, 3500);
     } catch (e) {
         console.error("Error al inicializar el gestor:", e);
         showToast("Error al cargar la base de datos", "error");
@@ -1656,6 +1659,15 @@ function parsearPrecioEscandallo(str) {
     return (isNaN(num) || num <= 0) ? null : Math.round(num * 100) / 100;
 }
 
+function calcularTipoIVAEscandallo(precioSinIva, precioConIva) {
+    if (!precioSinIva || !precioConIva || precioSinIva <= 0 || precioConIva <= 0) return null;
+    const ratio = precioConIva / precioSinIva;
+    if (ratio < 1.01) return 0;
+    if (ratio <= 1.07) return 4;
+    if (ratio <= 1.16) return 10;
+    return 21;
+}
+
 function parsearCSVEscandallo(csvText) {
     const lines = csvText.split(/\r?\n/);
     const rows = [];
@@ -1689,6 +1701,7 @@ function parsearCSVEscandallo(csvText) {
         const categoria = cols[8] ? cols[8].replace(/^"|"$/g, '').trim() : '';
         
         if (nombre && proveedor) {
+            const ivaCalculado = calcularTipoIVAEscandallo(precioSinIva, precioConIva);
             rows.push({
                 nombre,
                 normNombre: normalizarTextoEscandallo(nombre),
@@ -1696,6 +1709,7 @@ function parsearCSVEscandallo(csvText) {
                 normProveedor: normalizarTextoEscandallo(proveedor),
                 precioSinIva,
                 precioConIva,
+                ivaCalculado,
                 categoria
             });
         }
@@ -1797,9 +1811,14 @@ function analizarCatalogoVsEscandallo(sheetRows) {
             const isSuper = SUPERMERCADOS_LIST.some(s => normProv.includes(s));
             const nuevoPrecio = isSuper ? match.precioConIva : match.precioSinIva;
             const precioActual = parseFloat(appProd.precio) || 0;
+            const ivaActual = (appProd.iva !== undefined && appProd.iva !== null) ? parseInt(appProd.iva) : null;
+            const nuevoIva = match.ivaCalculado;
 
             if (nuevoPrecio !== null && nuevoPrecio > 0) {
-                if (Math.abs(nuevoPrecio - precioActual) >= 0.005) {
+                const hayCambioPrecio = Math.abs(nuevoPrecio - precioActual) >= 0.005;
+                const hayCambioIva = (nuevoIva !== null && ivaActual !== nuevoIva);
+
+                if (hayCambioPrecio || hayCambioIva) {
                     cambiados.push({
                         appProd,
                         nombre: appProd.nombre,
@@ -1808,6 +1827,8 @@ function analizarCatalogoVsEscandallo(sheetRows) {
                         nuevoPrecio,
                         diff: nuevoPrecio - precioActual,
                         tipoIva: isSuper ? 'Con IVA' : 'Sin IVA',
+                        ivaActual,
+                        nuevoIva,
                         sheetName: match.nombre,
                         selected: true
                     });
@@ -1817,6 +1838,7 @@ function analizarCatalogoVsEscandallo(sheetRows) {
                         nombre: appProd.nombre,
                         proveedor: prodProv,
                         precio: nuevoPrecio,
+                        iva: nuevoIva,
                         tipoIva: isSuper ? 'Con IVA' : 'Sin IVA'
                     });
                 }
@@ -1848,7 +1870,7 @@ function filtrarVistaSync(tipo) {
     const btnConfirm = document.getElementById("btn-confirm-sync");
 
     if (tipo === 'cambiados') {
-        titleEl.innerText = `Productos con Cambio de Precio (${syncAnalisisResult.cambiados.length})`;
+        titleEl.innerText = `Productos con Cambio de Precio / IVA (${syncAnalisisResult.cambiados.length})`;
         btnConfirm.style.display = "inline-flex";
         renderListaCambiados();
     } else if (tipo === 'iguales') {
@@ -1865,7 +1887,7 @@ function filtrarVistaSync(tipo) {
 function renderListaCambiados() {
     const listContainer = document.getElementById("sync-items-list");
     if (syncAnalisisResult.cambiados.length === 0) {
-        listContainer.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">🎉 ¡Todos los precios de tu catálogo coinciden exactamente con el Escandallo!</div>`;
+        listContainer.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">🎉 ¡Todos los precios e IVAs coinciden exactamente con el Escandallo!</div>`;
         document.getElementById("btn-confirm-sync").disabled = true;
         return;
     }
@@ -1876,7 +1898,12 @@ function renderListaCambiados() {
     let html = '';
     syncAnalisisResult.cambiados.forEach((item, idx) => {
         const diffText = (item.diff > 0 ? `+${item.diff.toFixed(2)}` : item.diff.toFixed(2)) + ' €';
-        const diffClass = item.diff > 0 ? 'diff-up' : 'diff-down';
+        const diffClass = item.diff > 0 ? 'diff-up' : (item.diff < 0 ? 'diff-down' : 'diff-none');
+        
+        let ivaBadge = '';
+        if (item.nuevoIva !== null && item.nuevoIva !== undefined) {
+            ivaBadge = `<span style="background: #e0f2fe; color: #0369a1; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">IVA ${item.nuevoIva}%</span>`;
+        }
 
         html += `
             <div class="sync-item-row">
@@ -1886,6 +1913,7 @@ function renderListaCambiados() {
                     <div class="sync-item-supplier">
                         <span class="sync-item-supplier-tag">${item.proveedor}</span>
                         <span>• ${item.tipoIva}</span>
+                        ${ivaBadge}
                     </div>
                 </div>
                 <div class="sync-item-prices">
@@ -1909,6 +1937,11 @@ function renderListaIguales() {
 
     let html = '';
     syncAnalisisResult.iguales.forEach(item => {
+        let ivaBadge = '';
+        if (item.iva !== null && item.iva !== undefined) {
+            ivaBadge = `<span style="background: #f1f5f9; color: #475569; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 10px;">IVA ${item.iva}%</span>`;
+        }
+
         html += `
             <div class="sync-item-row">
                 <span class="material-icons-round" style="color: #10b981; font-size: 18px;">check_circle</span>
@@ -1917,6 +1950,7 @@ function renderListaIguales() {
                     <div class="sync-item-supplier">
                         <span class="sync-item-supplier-tag">${item.proveedor}</span>
                         <span>• ${item.tipoIva}</span>
+                        ${ivaBadge}
                     </div>
                 </div>
                 <div class="sync-item-prices">
@@ -1965,7 +1999,7 @@ function actualizarTextoBotonSync() {
     const count = syncAnalisisResult.cambiados.filter(c => c.selected).length;
     const btnText = document.getElementById("btn-confirm-sync-text");
     const btn = document.getElementById("btn-confirm-sync");
-    if (btnText) btnText.innerText = `Aplicar ${count} Cambios de Precio`;
+    if (btnText) btnText.innerText = `Aplicar ${count} Cambios de Precio e IVA`;
     if (btn) btn.disabled = count === 0;
 }
 
@@ -1976,7 +2010,7 @@ async function ejecutarAplicarCambiosPrecios() {
         return;
     }
 
-    if (!confirm(`¿Confirmas la actualización de ${itemsToUpdate.length} precios en Firestore?\n\nSe registrará automáticamente en el historial de precios de cada producto.`)) {
+    if (!confirm(`¿Confirmas la actualización de ${itemsToUpdate.length} productos (precios e IVA) en Firestore?\n\nSe registrará automáticamente en el historial de precios.`)) {
         return;
     }
 
@@ -2001,11 +2035,17 @@ async function ejecutarAplicarCambiosPrecios() {
             });
             if (hist.length > 20) hist.shift();
 
-            batch.update(ref, {
+            const updateData = {
                 precio: item.nuevoPrecio,
                 historialPrecios: hist,
                 ultimaActualizacionPrecio: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+            if (item.nuevoIva !== null && item.nuevoIva !== undefined) {
+                updateData.iva = item.nuevoIva;
+                p.iva = item.nuevoIva;
+            }
+
+            batch.update(ref, updateData);
 
             // Actualizar objeto local en memoria
             p.precio = item.nuevoPrecio;
@@ -2025,7 +2065,7 @@ async function ejecutarAplicarCambiosPrecios() {
             await batch.commit();
         }
 
-        showToast(`✅ ${totalUpdated} precios actualizados correctamente`, "success");
+        showToast(`✅ ${totalUpdated} precios e IVAs actualizados correctamente`, "success");
         cerrarModalSyncEscandallo();
         
         // Recargar vista de productos en pantalla
@@ -2039,8 +2079,96 @@ async function ejecutarAplicarCambiosPrecios() {
     }
 }
 
+// --- SINCRONIZACIÓN AUTOMÁTICA DE LOS LUNES (09:00 / Semanal) ---
+async function verificarYSincronizarPreciosLunesAutomatico() {
+    try {
+        const hoy = new Date();
+        const diaSemana = hoy.getDay(); // 0: Dom, 1: Lun, 2: Mar, ...
+        const diasDesdeLunes = (diaSemana === 0 ? -6 : 1 - diaSemana);
+        const fechaLunes = new Date(hoy);
+        fechaLunes.setDate(hoy.getDate() + diasDesdeLunes);
+        const lunesStr = fechaLunes.toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+        const docConfig = await db.collection("system").doc("config").get();
+        const lastSyncMonday = docConfig.exists ? docConfig.data().lastSyncMonday : null;
+
+        if (lastSyncMonday !== lunesStr) {
+            console.log(`🕒 Lunes detectado (${lunesStr}). Iniciando sincronización automática de precios e IVA en segundo plano...`);
+            await sincronizarEscandalloSilencioso(lunesStr);
+        }
+    } catch (e) {
+        console.warn("Error en comprobación de sincronización semanal:", e);
+    }
+}
+
+async function sincronizarEscandalloSilencioso(lunesStr) {
+    try {
+        const res = await fetch(ESCANDALLO_CSV_URL);
+        if (!res.ok) return;
+        const csvText = await res.text();
+        const sheetRows = parsearCSVEscandallo(csvText);
+
+        analizarCatalogoVsEscandallo(sheetRows);
+        const itemsToUpdate = syncAnalisisResult.cambiados;
+
+        if (itemsToUpdate.length > 0) {
+            let batch = db.batch();
+            let ops = 0;
+            let total = 0;
+
+            for (const item of itemsToUpdate) {
+                const p = item.appProd;
+                const provId = p.supplierId || p.proveedor;
+                const ref = db.collection("proveedores").doc(provId).collection("productos").doc(p.id);
+
+                const hist = Array.isArray(p.historialPrecios) ? [...p.historialPrecios] : [];
+                hist.push({
+                    fecha: new Date().toISOString(),
+                    precio: item.nuevoPrecio
+                });
+                if (hist.length > 20) hist.shift();
+
+                const updateData = {
+                    precio: item.nuevoPrecio,
+                    historialPrecios: hist,
+                    ultimaActualizacionPrecio: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                if (item.nuevoIva !== null && item.nuevoIva !== undefined) {
+                    updateData.iva = item.nuevoIva;
+                    p.iva = item.nuevoIva;
+                }
+
+                batch.update(ref, updateData);
+                p.precio = item.nuevoPrecio;
+                p.historialPrecios = hist;
+                ops++;
+                total++;
+
+                if (ops >= 400) {
+                    await batch.commit();
+                    batch = db.batch();
+                    ops = 0;
+                }
+            }
+
+            if (ops > 0) await batch.commit();
+            console.log(`✅ Sincronización automática de lunes: ${total} productos actualizados.`);
+        }
+
+        await db.collection("system").doc("config").set({
+            lastSyncMonday: lunesStr,
+            lastSyncDate: new Date().toISOString()
+        }, { merge: true });
+
+        filtrarCatalogo();
+    } catch (err) {
+        console.error("Error en sincronización automática silenciosa:", err);
+    }
+}
+
 window.abrirModalSyncEscandallo = abrirModalSyncEscandallo;
 window.cerrarModalSyncEscandallo = cerrarModalSyncEscandallo;
 window.filtrarVistaSync = filtrarVistaSync;
 window.toggleSyncItem = toggleSyncItem;
 window.ejecutarAplicarCambiosPrecios = ejecutarAplicarCambiosPrecios;
+window.verificarYSincronizarPreciosLunesAutomatico = verificarYSincronizarPreciosLunesAutomatico;
