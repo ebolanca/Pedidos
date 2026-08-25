@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.59";
+        const CLIENT_VERSION = "11.60";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -1779,16 +1779,39 @@ function obtenerPalabrasClave(str) {
         .filter(w => w && !['de','el','la','los','las','un','una','para','llevar','en','con','del'].includes(w));
 }
 
-function calcularScoreCoincidencia(appStr, sheetStr) {
+function extraerCapacidades(str) {
+    if (!str) return [];
+    const norm = str.toLowerCase().replace(/(\d+)\s+(cl|ml|kg|g|l|cm|ud)/g, '$1$2');
+    return (norm.match(/\d+(?:[.,]\d+)?(?:cl|ml|kg|g|l|cm|ud)?/gi) || []).map(x => x.toLowerCase());
+}
+
+function calcularScoreCoincidencia(appStr, appUnit, sheetStr) {
     const w1 = obtenerPalabrasClave(appStr);
     const w2 = obtenerPalabrasClave(sheetStr);
     if (w1.length === 0 || w2.length === 0) return 0;
+
+    const appNums = extraerCapacidades(appStr);
+    const sheetNums = extraerCapacidades(sheetStr);
+    
+    let numBonus = 0;
+    if (appNums.length > 0) {
+        const numMatch = appNums.every(n => sheetNums.includes(n));
+        if (!numMatch) return 0;
+        numBonus = 0.5;
+    }
+
+    const appEsCaja = (appUnit && appUnit.toLowerCase().includes('caja')) || appStr.toLowerCase().includes('caja');
+    const sheetEsCaja = sheetStr.toLowerCase().includes('caja');
 
     let matches = 0;
     w1.forEach(w => {
         if (w2.some(x => x === w || (w.length >= 4 && (x.includes(w) || w.includes(x))))) matches++;
     });
-    return matches / Math.max(w1.length, w2.length);
+    
+    let score = (matches / Math.max(w1.length, w2.length)) + numBonus;
+    if (appEsCaja && sheetEsCaja) score += 0.4;
+    if (!appEsCaja && sheetEsCaja) score -= 0.3;
+    return score;
 }
 
 function analizarCatalogoVsEscandallo(sheetRows) {
@@ -1810,6 +1833,7 @@ function analizarCatalogoVsEscandallo(sheetRows) {
         const prodProv = appProd.supplierId || appProd.proveedor || '';
         const normProv = normalizarTextoEscandallo(prodProv);
         const normProdName = normalizarTextoEscandallo(appProd.nombre);
+        const appUnit = appProd.unidad || '';
 
         // Buscar las filas de ese proveedor en la hoja
         let candidates = sheetByProv.get(normProv) || [];
@@ -1834,13 +1858,13 @@ function analizarCatalogoVsEscandallo(sheetRows) {
                            Math.abs(c.normNombre.length - normProdName.length) <= 6;
                 });
             }
-            // 3. Coincidencia inteligente por palabras clave
+            // 3. Coincidencia inteligente por palabras clave y capacidad
             if (!match) {
                 let bestScore = 0;
                 let bestCand = null;
                 for (const c of candidates) {
-                    const score = calcularScoreCoincidencia(appProd.nombre, c.nombre);
-                    if (score > bestScore && score >= 0.6) {
+                    const score = calcularScoreCoincidencia(appProd.nombre, appUnit, c.nombre);
+                    if (score > bestScore && score >= 0.5) {
                         bestScore = score;
                         bestCand = c;
                     }
