@@ -31,7 +31,7 @@ function getFirebaseToken() {
 }
 
 async function syncVersion() {
-    const VERSION = "11.58";
+    const VERSION = "11.59";
     const PROJECT_ID = "pedidos-rail-app-2025-87f2c";
     
     console.log(`🚀 Sincronizando versión ${VERSION} con Firestore (REST API)...`);

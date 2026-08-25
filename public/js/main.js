@@ -3,11 +3,11 @@
    ============================================================= */
 
 // IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.58';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.58';
-import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.58';
-import { db, auth } from './modules/firebase-init.js?v=11.58';
-import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.58';
+import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.59';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.59';
+import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.59';
+import { db, auth } from './modules/firebase-init.js?v=11.59';
+import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.59';
 
 
 
@@ -705,61 +705,92 @@ function v8_verInfoEscandallo(idProd) {
     const ivaVal = parseFloat(p.iva) || 0;
     const precioConIva = (precioBase * (1 + ivaVal / 100)).toFixed(2);
 
-    const formatoCant = esc.cantidad || p.formatoCantidad || p.peso || '-';
-    const formatoUni = esc.unidad || p.formatoUnidad || p.unidad || '-';
-    const pSinIva = esc.precioSinIva ? `${parseFloat(esc.precioSinIva).toFixed(2)} €` : `${precioBase.toFixed(2)} €`;
-    const pConIva = esc.precioConIva ? `${parseFloat(esc.precioConIva).toFixed(2)} €` : `${precioConIva} €`;
-    const pKgSin = esc.precioKgSinIva ? `${parseFloat(esc.precioKgSinIva).toFixed(2)} €` : '-';
-    const pKgCon = esc.precioKgConIva ? `${parseFloat(esc.precioKgConIva).toFixed(2)} €` : '-';
+    const cantidadNum = esc.cantidad ? parseFloat(esc.cantidad.toString().replace(',', '.')) : (p.peso ? parseFloat(p.peso) : null);
+    const cantidadStr = esc.cantidad || (cantidadNum ? cantidadNum.toString() : '1');
+    const unidadStr = esc.unidad || p.unidad || 'Unidad';
+
+    // Singularizar unidad
+    let unidadSingular = unidadStr.toLowerCase();
+    if (unidadSingular.endsWith('es')) unidadSingular = unidadSingular.slice(0, -2);
+    else if (unidadSingular.endsWith('s') && unidadSingular.length > 3) unidadSingular = unidadSingular.slice(0, -1);
+    if (unidadSingular === 'kilo') unidadSingular = 'kg';
+
+    // Precios totales de caja / artículo
+    const pTotalSinIva = esc.precioSinIva ? parseFloat(esc.precioSinIva) : precioBase;
+    const pTotalConIva = esc.precioConIva ? parseFloat(esc.precioConIva) : parseFloat(precioConIva);
+
+    // Precios unitarios (por unidad, kg o litro)
+    let pUnitSinIva = esc.precioKgSinIva ? parseFloat(esc.precioKgSinIva) : null;
+    let pUnitConIva = esc.precioKgConIva ? parseFloat(esc.precioKgConIva) : null;
+
+    if (pUnitSinIva === null && cantidadNum && cantidadNum > 0 && pTotalSinIva > 0) {
+        pUnitSinIva = Math.round((pTotalSinIva / cantidadNum) * 100) / 100;
+    }
+    if (pUnitConIva === null && cantidadNum && cantidadNum > 0 && pTotalConIva > 0) {
+        pUnitConIva = Math.round((pTotalConIva / cantidadNum) * 100) / 100;
+    }
+
     const prov = esc.proveedor || p.supplierId || p.proveedor || currentProv || '-';
     const cat = esc.categoria || p.categoria || '-';
 
     contentDiv.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:10px; font-size:13px; color:#334155;">
-            <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid #e2e8f0; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#334155;">
+            <div style="background:#f8fafc; padding:12px 14px; border-radius:12px; border:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Proveedor</span>
-                    <span style="font-weight:700; color:#0f172a;">${prov}</span>
+                    <span style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Proveedor</span>
+                    <div style="font-size:15px; font-weight:700; color:#0f172a;">${prov}</div>
                 </div>
-                <div>
-                    <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Categoría</span>
-                    <span style="font-weight:600; color:#0f172a;">${cat}</span>
+                <div style="text-align:right;">
+                    <span style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Categoría</span>
+                    <div style="font-size:13px; font-weight:600; color:#475569;">${cat}</div>
                 </div>
             </div>
 
-            <div style="background:#f0fdf4; padding:12px; border-radius:12px; border:1px solid #bbf7d0; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <!-- Presentación del paquete / caja -->
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:14px; border-radius:12px; display:flex; align-items:center; justify-content:space-between;">
                 <div>
-                    <span style="display:block; font-size:11px; color:#166534; font-weight:600; text-transform:uppercase;">📦 Cantidad (Pack)</span>
-                    <span style="font-weight:700; color:#15803d; font-size:16px;">${formatoCant}</span>
+                    <span style="font-size:11px; color:#166534; font-weight:700; text-transform:uppercase;">📦 Contenido / Envase</span>
+                    <div style="font-size:18px; font-weight:800; color:#15803d; margin-top:2px;">${cantidadStr} ${unidadStr}</div>
                 </div>
-                <div>
-                    <span style="display:block; font-size:11px; color:#166534; font-weight:600; text-transform:uppercase;">🏷️ Unidad</span>
-                    <span style="font-weight:700; color:#15803d; font-size:16px;">${formatoUni}</span>
+                <div style="text-align:right;">
+                    <span style="font-size:11px; color:#166534; font-weight:600;">Unidad de medida</span>
+                    <div style="font-size:14px; font-weight:700; color:#166534;">${unidadStr}</div>
                 </div>
             </div>
 
-            <div style="background:#f8fafc; padding:12px; border-radius:12px; border:1px solid #e2e8f0;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
-                    <div>
-                        <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Precio Sin IVA</span>
-                        <span style="font-weight:700; color:#16a34a; font-size:16px;">${pSinIva}</span>
+            <!-- PRECIO UNITARIO (Por cada unidad / kg / litro) -->
+            ${(pUnitSinIva !== null || pUnitConIva !== null) ? `
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:14px; border-radius:12px;">
+                <div style="font-size:11px; color:#1e40af; font-weight:700; text-transform:uppercase; margin-bottom:8px;">
+                    ⚖️ Precio por ${unidadSingular} (Desglose)
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div style="background:white; padding:10px 12px; border-radius:10px; border:1px solid #dbeafe;">
+                        <span style="font-size:11px; color:#64748b; font-weight:600;">Sin IVA</span>
+                        <div style="font-size:17px; font-weight:800; color:#0284c7; margin-top:2px;">${(pUnitSinIva !== null ? pUnitSinIva.toFixed(2) : '-')} € <span style="font-size:11px; font-weight:500; color:#64748b;">/${unidadSingular}</span></div>
                     </div>
-                    <div>
-                        <span style="display:block; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase;">Precio Con IVA (${ivaVal}%)</span>
-                        <span style="font-weight:700; color:#0f172a; font-size:16px;">${pConIva}</span>
+                    <div style="background:white; padding:10px 12px; border-radius:10px; border:1px solid #dbeafe;">
+                        <span style="font-size:11px; color:#64748b; font-weight:600;">Con IVA (${ivaVal}%)</span>
+                        <div style="font-size:17px; font-weight:800; color:#1d4ed8; margin-top:2px;">${(pUnitConIva !== null ? pUnitConIva.toFixed(2) : '-')} € <span style="font-size:11px; font-weight:500; color:#64748b;">/${unidadSingular}</span></div>
                     </div>
                 </div>
-                ${(pKgSin !== '-' || pKgCon !== '-') ? `
-                <div style="border-top:1px dashed #cbd5e1; padding-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            </div>` : ''}
+
+            <!-- PRECIO TOTAL DE CAJA / ARTÍCULO -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:12px;">
+                <div style="font-size:11px; color:#475569; font-weight:700; text-transform:uppercase; margin-bottom:8px;">
+                    🏷️ Precio Total del Artículo / Caja
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                     <div>
-                        <span style="display:block; font-size:10px; color:#64748b;">Precio Kg/L (Sin IVA)</span>
-                        <span style="font-weight:600; font-size:12px; color:#475569;">${pKgSin}</span>
+                        <span style="font-size:11px; color:#64748b;">Total Sin IVA</span>
+                        <div style="font-size:16px; font-weight:700; color:#16a34a; margin-top:2px;">${pTotalSinIva.toFixed(2)} €</div>
                     </div>
                     <div>
-                        <span style="display:block; font-size:10px; color:#64748b;">Precio Kg/L (Con IVA)</span>
-                        <span style="font-weight:600; font-size:12px; color:#475569;">${pKgCon}</span>
+                        <span style="font-size:11px; color:#64748b;">Total Con IVA (${ivaVal}%)</span>
+                        <div style="font-size:16px; font-weight:700; color:#0f172a; margin-top:2px;">${pTotalConIva.toFixed(2)} €</div>
                     </div>
-                </div>` : ''}
+                </div>
             </div>
         </div>
     `;

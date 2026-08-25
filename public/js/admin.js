@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.58";
+        const CLIENT_VERSION = "11.59";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -1769,6 +1769,28 @@ function cerrarModalSyncEscandallo() {
     if (modal) modal.classList.remove("active");
 }
 
+function obtenerPalabrasClave(str) {
+    if (!str) return [];
+    return str.toString().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, ' ')
+        .split(/\s+/)
+        .map(w => (w.endsWith('s') && w.length > 3) ? w.slice(0, -1) : w)
+        .filter(w => w && !['de','el','la','los','las','un','una','para','llevar','en','con','del'].includes(w));
+}
+
+function calcularScoreCoincidencia(appStr, sheetStr) {
+    const w1 = obtenerPalabrasClave(appStr);
+    const w2 = obtenerPalabrasClave(sheetStr);
+    if (w1.length === 0 || w2.length === 0) return 0;
+
+    let matches = 0;
+    w1.forEach(w => {
+        if (w2.some(x => x === w || (w.length >= 4 && (x.includes(w) || w.includes(x))))) matches++;
+    });
+    return matches / Math.max(w1.length, w2.length);
+}
+
 function analizarCatalogoVsEscandallo(sheetRows) {
     const cambiados = [];
     const iguales = [];
@@ -1811,6 +1833,19 @@ function analizarCatalogoVsEscandallo(sheetRows) {
                     return (c.normNombre.includes(normProdName) || normProdName.includes(c.normNombre)) &&
                            Math.abs(c.normNombre.length - normProdName.length) <= 6;
                 });
+            }
+            // 3. Coincidencia inteligente por palabras clave
+            if (!match) {
+                let bestScore = 0;
+                let bestCand = null;
+                for (const c of candidates) {
+                    const score = calcularScoreCoincidencia(appProd.nombre, c.nombre);
+                    if (score > bestScore && score >= 0.6) {
+                        bestScore = score;
+                        bestCand = c;
+                    }
+                }
+                if (bestCand) match = bestCand;
             }
         }
 
