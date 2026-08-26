@@ -7,14 +7,33 @@ const conf = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const token = conf.tokens.access_token;
 const PROJECT_ID = 'pedidos-rail-app-2025-87f2c';
 
-function cleanWords(str) {
+const DESCRIPTORS_NOISE = [
+    'bebida', 'cerveza', 'salsa', 'envase', 'producto', 'caja', 'paquete', 'botella', 
+    'pack', 'lata', 'barra', 'bolsa', 'bandeja', 'formato', 'con', 'sin', 'de', 
+    'del', 'la', 'el', 'los', 'las', 'un', 'una', 'para', 'llevar', 'en'
+];
+
+const FLAVOR_COLORS = [
+    'blue', 'pink', 'red', 'green', 'black', 'white', 'azul', 'rosa', 'rojo', 
+    'limon', 'naranja', 'fresa', 'melocoton', 'maracuya', 'mango', 'pina', 'cola',
+    'zero', 'light', 'original', 'clasica', 'tostada'
+];
+
+function extraerPalabrasClave(str) {
     if (!str) return [];
     return str.toString().toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z0-9]/g, ' ')
         .split(/\s+/)
-        .map(w => (w.endsWith('s') && w.length > 3) ? w.slice(0, -1) : w)
-        .filter(w => w && !['de','el','la','los','las','un','una','para','llevar','en','con','del'].includes(w));
+        .map(w => {
+            let res = w;
+            if (res.endsWith('s') && res.length > 3) res = res.slice(0, -1);
+            if (res.endsWith('ito') && res.length > 4) res = res.slice(0, -3) + 'o';
+            if (res.endsWith('ita') && res.length > 4) res = res.slice(0, -3) + 'a';
+            res = res.replace(/z/g, 'c').replace(/v/g, 'b');
+            return res;
+        })
+        .filter(w => w && !DESCRIPTORS_NOISE.includes(w));
 }
 
 function extraerCapacidades(str) {
@@ -24,31 +43,45 @@ function extraerCapacidades(str) {
 }
 
 function matchScore(appStr, appUnit, sheetStr) {
-    const w1 = cleanWords(appStr);
-    const w2 = cleanWords(sheetStr);
-    if (w1.length === 0 || w2.length === 0) return 0;
-    
-    const appNums = extraerCapacidades(appStr);
-    const sheetNums = extraerCapacidades(sheetStr);
-    
+    const wApp = extraerPalabrasClave(appStr);
+    const wSheet = extraerPalabrasClave(sheetStr);
+    if (wApp.length === 0 || wSheet.length === 0) return 0;
+
+    const numApp = extraerCapacidades(appStr);
+    const numSheet = extraerCapacidades(sheetStr);
+
     let numBonus = 0;
-    if (appNums.length > 0) {
-        const numMatch = appNums.every(n => sheetNums.includes(n));
+    if (numApp.length > 0 && numSheet.length > 0) {
+        const numMatch = numApp.every(n => numSheet.includes(n));
         if (!numMatch) return 0;
-        numBonus = 0.5;
+        numBonus = 0.4;
+    }
+
+    let matches = 0;
+    let coreBrandMatched = false;
+
+    wApp.forEach(w => {
+        const matchFound = wSheet.some(x => x === w || (w.length >= 4 && x.length >= 4 && (x.includes(w) || w.includes(x))));
+        if (matchFound) {
+            matches++;
+            if (!FLAVOR_COLORS.includes(w)) {
+                coreBrandMatched = true;
+            }
+        }
+    });
+
+    if (!coreBrandMatched && matches === 0) return 0;
+
+    let score = (matches / Math.max(wApp.length, wSheet.length)) + numBonus;
+    if (coreBrandMatched && wApp.some(w => FLAVOR_COLORS.includes(w)) && !wSheet.some(w => FLAVOR_COLORS.includes(w))) {
+        score += 0.35;
     }
 
     const appEsCaja = (appUnit && appUnit.toLowerCase().includes('caja')) || appStr.toLowerCase().includes('caja');
     const sheetEsCaja = sheetStr.toLowerCase().includes('caja');
-    
-    let matches = 0;
-    w1.forEach(w => {
-        if (w2.some(x => x === w || (w.length >= 4 && (x.includes(w) || w.includes(x))))) matches++;
-    });
-    
-    let score = (matches / Math.max(w1.length, w2.length)) + numBonus;
-    if (appEsCaja && sheetEsCaja) score += 0.4;
-    if (!appEsCaja && sheetEsCaja) score -= 0.3;
+    if (appEsCaja && sheetEsCaja) score += 0.3;
+    if (!appEsCaja && sheetEsCaja) score -= 0.2;
+
     return score;
 }
 
@@ -149,8 +182,8 @@ async function run() {
         });
         const prods = JSON.parse(resProds.body).documents || [];
         const provSheetRows = sheetRows.filter(r => {
-            const normP = cleanWords(provId).join(' ');
-            const normS = cleanWords(r.proveedor).join(' ');
+            const normP = extraerPalabrasClave(provId).join(' ');
+            const normS = extraerPalabrasClave(r.proveedor).join(' ');
             return normP.includes(normS) || normS.includes(normP);
         });
 

@@ -3,11 +3,11 @@
    ============================================================= */
 
 // IMPORTACIONES DE MÓDULOS
-import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.60';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.60';
-import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.60';
-import { db, auth } from './modules/firebase-init.js?v=11.60';
-import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.60';
+import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.61';
+import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
+import { db, auth } from './modules/firebase-init.js?v=11.61';
+import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
 
 
 
