@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.61';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.62';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
@@ -1620,8 +1620,8 @@ function v9_renderListaLector() {
 
     let totalLector = 0;
     for (let k in items) {
-        if (items[k] > 0 && precios[k]) {
-            const pBase = parseFloat(precios[k].replace(',', '.'));
+        if (items[k] > 0 && (precios[k] !== undefined && precios[k] !== null && precios[k] !== "")) {
+            const pBase = typeof precios[k] === 'number' ? precios[k] : parseFloat(precios[k].toString().replace(',', '.'));
             const ivaVal = parseFloat(ivas[k]) || 0;
 
             // CALCULO v94: Base + IVA
@@ -1721,11 +1721,11 @@ function v9_renderListaLector() {
             noteHtml = `<div class="v9-alert-note" onclick="alert('NOTA: ${item.textoNota.replace(/'/g, "")}')">⚠️ LEER NOTA</div>`;
         }
 
-        const precioVal = item.precio || "";
+        const precioVal = item.precio !== undefined && item.precio !== null ? item.precio : "";
         const ivaVal = parseFloat(ivas[item.id]) || 0;
 
         let finalPriceHtml = "";
-        const precNum = parseFloat(precioVal.replace(',', '.'));
+        const precNum = typeof precioVal === 'number' ? precioVal : parseFloat(precioVal.toString().replace(',', '.'));
 
         // Calculo SOLO VISUAL: Base * (1 + IVA)
         if (!isNaN(precNum) && precNum > 0) {

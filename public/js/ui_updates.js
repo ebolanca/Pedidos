@@ -17,7 +17,7 @@ function v8_updateRowUI(id) {
     if (elPrc && document.activeElement !== elPrc) elPrc.value = precioBaseStr;
 
     // Calcular Total Unitario
-    const pNum = parseFloat(precioBaseStr.replace(',', '.'));
+    const pNum = typeof precioBaseStr === 'number' ? precioBaseStr : parseFloat(precioBaseStr.toString().replace(',', '.'));
     if (!isNaN(pNum)) {
         const finalUnit = (pNum * (1 + ivaVal / 100)).toFixed(2);
         const elLbl = document.getElementById(`lblUnit_${id}`);
@@ -53,7 +53,7 @@ function v8_updateGlobalTotals() {
     for (const [id, qty] of Object.entries(cart)) {
         const p = allProducts.find(x => x.id === id);
         if (p && p.precio) {
-            const precioBase = parseFloat(p.precio.replace(',', '.')) || 0;
+            const precioBase = typeof p.precio === 'number' ? p.precio : (parseFloat(p.precio.toString().replace(',', '.')) || 0);
             const ivaPct = parseFloat(p.iva) || 0;
             const precioConIva = precioBase * (1 + (ivaPct / 100));
 
