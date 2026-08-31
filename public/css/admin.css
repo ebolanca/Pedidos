@@ -1013,3 +1013,41 @@ body.has-bulk-bar .fab-btn {
     background: #f1f5f9;
     color: #64748b;
 }
+
+/* Badge clickeable de productos de un proveedor */
+.clickable-prov-badge {
+    cursor: pointer !important;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+}
+
+.clickable-prov-badge:hover {
+    background: #bae6fd !important;
+    color: #0284c7 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(3, 105, 161, 0.18);
+}
+
+.clickable-prov-badge:active {
+    transform: translateY(0);
+}
+
+/* Scrollbar personalizado para listado de productos de proveedor */
+#modal-prov-prods-content::-webkit-scrollbar {
+    width: 6px;
+}
+#modal-prov-prods-content::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 4px;
+}
+#modal-prov-prods-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+#modal-prov-prods-content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+

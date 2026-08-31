@@ -123,7 +123,7 @@ async function inicializarGestor() {
         }
 
         // --- ACTUALIZAR LA VERSIÓN DEL SISTEMA EN FIRESTORE ---
-        const CLIENT_VERSION = "11.62";
+        const CLIENT_VERSION = "11.63";
         try {
             await db.collection("system").doc("config").set({
                 version: CLIENT_VERSION,
@@ -505,7 +505,12 @@ function renderProveedores() {
             </button>
             <div class="card-header">
                 <h4 class="card-title">${s.id}</h4>
-                <div class="card-subtitle" style="background:#e0f2fe; color:#0369a1">${count} productos</div>
+                <div class="card-subtitle clickable-prov-badge" 
+                     style="background:#e0f2fe; color:#0369a1; cursor:pointer;" 
+                     onclick="event.stopPropagation(); abrirModalProductosProveedor('${s.id}')"
+                     title="Ver lista de productos de ${s.id}">
+                    ${count} productos
+                </div>
             </div>
             <div class="responsibles-list">
                 <div class="responsibles-title">Autorizados para pedir:</div>
@@ -526,6 +531,72 @@ function renderProveedores() {
 function filtrarCatalogo() {
     renderProductos();
 }
+
+function abrirModalProductosProveedor(provId) {
+    if (!provId) return;
+
+    // Filtrar los productos del proveedor actual
+    const prods = allProducts.filter(p => p.supplierId === provId);
+    prods.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+
+    const modal = document.getElementById("modal-productos-proveedor");
+    const titleEl = document.getElementById("modal-prov-prods-title");
+    const contentEl = document.getElementById("modal-prov-prods-content");
+
+    if (!modal || !titleEl || !contentEl) return;
+
+    const countLabel = prods.length === 1 ? '1 producto' : `${prods.length} productos`;
+    titleEl.innerText = `${provId} (${countLabel})`;
+
+    if (prods.length === 0) {
+        contentEl.innerHTML = `
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 14px;">
+                <span class="material-icons-round" style="font-size: 40px; color: #cbd5e1; display: block; margin-bottom: 8px;">inventory_2</span>
+                No hay productos registrados para este proveedor.
+            </div>
+        `;
+    } else {
+        let itemsHtml = `<div style="background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 4px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">`;
+
+        prods.forEach((p, idx) => {
+            const isLast = idx === prods.length - 1;
+            const borderStyle = isLast ? 'border-bottom: none;' : 'border-bottom: 1px solid #f1f5f9;';
+
+            let extraInfo = '';
+            if (p.precio && parseFloat(p.precio) > 0) {
+                extraInfo = `<span style="font-weight: 700; color: #0284c7; font-size: 13px; white-space: nowrap; background: #f0f9ff; padding: 3px 8px; border-radius: 6px; border: 1px solid #e0f2fe;">${parseFloat(p.precio).toFixed(2)} €</span>`;
+            } else if (p.unidad) {
+                extraInfo = `<span style="font-weight: 600; color: #64748b; font-size: 12px; background: #f8fafc; padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0;">${p.unidad}</span>`;
+            }
+
+            let catSubtitle = '';
+            if (p.categoria) {
+                catSubtitle = `<span style="font-size: 11px; color: #64748b; font-weight: 500;">📁 ${p.categoria}</span>`;
+            }
+
+            itemsHtml += `
+                <div style="padding: 10px 0; ${borderStyle} display: flex; justify-content: space-between; align-items: center; font-size: 14px; gap: 10px;">
+                    <div style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                        <span style="font-weight: 600; color: #1e293b; line-height: 1.35;">${p.nombre}</span>
+                        ${catSubtitle}
+                    </div>
+                    ${extraInfo}
+                </div>
+            `;
+        });
+
+        itemsHtml += `</div>`;
+        contentEl.innerHTML = itemsHtml;
+    }
+
+    modal.classList.add("active");
+}
+
+function cerrarModalProductosProveedor() {
+    const modal = document.getElementById("modal-productos-proveedor");
+    if (modal) modal.classList.remove("active");
+}
+
 
 // --- 4. TABS & INTERFAZ ---
 function switchTab(tab) {
@@ -2293,3 +2364,5 @@ window.filtrarVistaSync = filtrarVistaSync;
 window.toggleSyncItem = toggleSyncItem;
 window.ejecutarAplicarCambiosPrecios = ejecutarAplicarCambiosPrecios;
 window.verificarYSincronizarPreciosLunesAutomatico = verificarYSincronizarPreciosLunesAutomatico;
+window.abrirModalProductosProveedor = abrirModalProductosProveedor;
+window.cerrarModalProductosProveedor = cerrarModalProductosProveedor;
