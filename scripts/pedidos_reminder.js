@@ -6,10 +6,39 @@
 // ==========================================================
 
 const https = require('https');
+const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
 
 const PEDIDOS_API_KEY = "AIzaSyATkItPtDhyjv9hkL54Q1JZauK5DfqdKh4";
 const PEDIDOS_PROJECT_ID = "pedidos-rail-app-2025-87f2c";
 const PEDIDOS_APP_URL = "https://pedidos-rail-app-2025-87f2c.web.app";
+
+// 1. Conexión directa a Firestore de Pedidos mediante Service Account (Admin SDK)
+let pedidosDb = null;
+const possibleCertPaths = [
+    path.resolve(__dirname, "pedidos-service-account.json"),
+    path.resolve(__dirname, "../pedidos-service-account.json"),
+    path.resolve(__dirname, "../../pedidos-service-account.json"),
+    path.resolve(__dirname, "../../../pedidos-service-account.json")
+];
+
+for (const p of possibleCertPaths) {
+    if (fs.existsSync(p)) {
+        try {
+            const cert = require(p);
+            const existingApp = admin.apps.find(a => a && a.name === 'pedidosApp');
+            const pedidosApp = existingApp || admin.initializeApp({
+                credential: admin.credential.cert(cert)
+            }, 'pedidosApp');
+            pedidosDb = pedidosApp.firestore();
+            console.log("🔑 [PEDIDOS REMINDER] Conectado a Firestore de Pedidos vía Service Account (cero usuarios en Auth).");
+            break;
+        } catch (e) {
+            console.warn("⚠️ [PEDIDOS REMINDER] Error al inicializar Service Account:", e.message);
+        }
+    }
+}
 
 // Días de compra por proveedor (0 = Domingo, 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves, 5 = Viernes, 6 = Sábado)
 // La alarma se comprueba a las 15:00 del día previo (diaAlarma = (diaCompra + 6) % 7)
@@ -33,8 +62,14 @@ const EXCLUDED_NAMES = ["Roberto", "roberto"];
 // Caché de eventos notificados para evitar spam (Formato: reminder_YYYY-MM-DD_userEmail)
 const notifiedDailyReminders = new Set();
 
-// Autenticación anónima para consultar Firestore de Pedidos vía REST API
+// Token en caché con tiempo de expiración (Fallback REST si no hubiese Service Account)
+let cachedRestToken = null;
+let cachedRestTokenExpiry = 0;
+
 async function getPedidosAuthToken() {
+    if (cachedRestToken && Date.now() < cachedRestTokenExpiry) {
+        return cachedRestToken;
+    }
     return new Promise((resolve, reject) => {
         const postData = JSON.stringify({ returnSecureToken: true });
         const req = https.request({
@@ -51,8 +86,13 @@ async function getPedidosAuthToken() {
             res.on('end', () => {
                 try {
                     const data = JSON.parse(body);
-                    if (data.idToken) resolve(data.idToken);
-                    else reject(new Error(data.error?.message || "No se pudo obtener token anónimo"));
+                    if (data.idToken) {
+                        cachedRestToken = data.idToken;
+                        cachedRestTokenExpiry = Date.now() + 50 * 60 * 1000; // 50 min
+                        resolve(data.idToken);
+                    } else {
+                        reject(new Error(data.error?.message || "No se pudo obtener token"));
+                    }
                 } catch (e) {
                     reject(e);
                 }
@@ -138,38 +178,66 @@ async function checkPedidosReminders(dbHorarios, sendMessage, options = {}) {
     console.log(`📋 [PEDIDOS REMINDER] Proveedores con compra programada para mañana: ${targetProviders.join(', ')}`);
 
     try {
-        // 2. Autenticación con Pedidos Firestore
-        const token = await getPedidosAuthToken();
-
-        // 3. Cargar proveedores y personal de Pedidos
-        const [rawProvs, rawPersonal] = await Promise.all([
-            fetchPedidosFirestore('proveedores', token),
-            fetchPedidosFirestore('personal', token)
-        ]);
-
-        // Mapa de Proveedores con su configuración (lector y responsables)
+        // 2. Cargar proveedores y personal de Pedidos
         const provsMap = {};
-        rawProvs.forEach(d => {
-            const id = d.name.split('/').pop();
-            const f = d.fields || {};
-            const enLector = f.enLector?.booleanValue ?? false;
-            const resp = (f.responsables?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean);
-            provsMap[id] = { id, enLector, responsables: resp };
-        });
-
-        // Mapa de Personal (para sustitutos de vacaciones)
         const personalByEmail = {};
         const personalByName = {};
-        rawPersonal.forEach(d => {
-            const email = d.name.split('/').pop();
-            const f = d.fields || {};
-            const nombre = f.nombre?.stringValue || email;
-            const sustituto = f.sustituto?.stringValue || null;
-            const sustitutoEmail = f.sustitutoEmail?.stringValue || null;
-            const pInfo = { email, nombre, sustituto, sustitutoEmail };
-            personalByEmail[email.toLowerCase()] = pInfo;
-            personalByName[normalizeName(nombre)] = pInfo;
-        });
+
+        if (pedidosDb) {
+            const [provsSnap, personalSnap] = await Promise.all([
+                pedidosDb.collection('proveedores').get(),
+                pedidosDb.collection('personal').get()
+            ]);
+
+            provsSnap.forEach(doc => {
+                const data = doc.data();
+                provsMap[doc.id] = {
+                    id: doc.id,
+                    enLector: data.enLector ?? false,
+                    responsables: data.responsables || []
+                };
+            });
+
+            personalSnap.forEach(doc => {
+                const data = doc.data();
+                const email = doc.id;
+                const nombre = data.nombre || email;
+                const pInfo = {
+                    email,
+                    nombre,
+                    sustituto: data.sustituto || null,
+                    sustitutoEmail: data.sustitutoEmail || null
+                };
+                personalByEmail[email.toLowerCase()] = pInfo;
+                personalByName[normalizeName(nombre)] = pInfo;
+            });
+        } else {
+            // Fallback REST (usa token cacheado para no generar cuentas anónimas)
+            const token = await getPedidosAuthToken();
+            const [rawProvs, rawPersonal] = await Promise.all([
+                fetchPedidosFirestore('proveedores', token),
+                fetchPedidosFirestore('personal', token)
+            ]);
+
+            rawProvs.forEach(d => {
+                const id = d.name.split('/').pop();
+                const f = d.fields || {};
+                const enLector = f.enLector?.booleanValue ?? false;
+                const resp = (f.responsables?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean);
+                provsMap[id] = { id, enLector, responsables: resp };
+            });
+
+            rawPersonal.forEach(d => {
+                const email = d.name.split('/').pop();
+                const f = d.fields || {};
+                const nombre = f.nombre?.stringValue || email;
+                const sustituto = f.sustituto?.stringValue || null;
+                const sustitutoEmail = f.sustitutoEmail?.stringValue || null;
+                const pInfo = { email, nombre, sustituto, sustitutoEmail };
+                personalByEmail[email.toLowerCase()] = pInfo;
+                personalByName[normalizeName(nombre)] = pInfo;
+            });
+        }
 
         // 4. Cargar usuarios de Horarios (para obtener teléfonos)
         const usersSnap = await dbHorarios.collection('users').get();
@@ -196,27 +264,42 @@ async function checkPedidosReminders(dbHorarios, sendMessage, options = {}) {
                 continue;
             }
 
-            // A. Obtener todos los productos de este proveedor
-            const rawProds = await fetchPedidosFirestore(`proveedores/${encodeURIComponent(provName)}/productos`, token);
-            
-            // Mapear productos por responsable
-            // prodInfo: { id, nombre, responsable }
-            const productsList = rawProds.map(pDoc => {
-                const pId = pDoc.name.split('/').pop();
-                const pFields = pDoc.fields || {};
-                const pResp = pFields.responsable?.stringValue ? pFields.responsable.stringValue.trim() : 'Todos';
-                return { id: pId, responsable: pResp };
-            });
-
-            // B. Consultar borrador actual de este proveedor
-            const borradorDoc = await fetchPedidosDoc(`borradores/${encodeURIComponent(provName)}`, token);
-            const draftItems = borradorDoc?.fields?.items?.mapValue?.fields || {};
-            
-            // Set de IDs de productos en el borrador con cantidad > 0
+            // A. Obtener todos los productos y borrador de este proveedor
+            let productsList = [];
             const activeDraftProdIds = new Set();
-            for (const [prodId, valObj] of Object.entries(draftItems)) {
-                const qty = parseFloat(valObj.integerValue || valObj.doubleValue || valObj.stringValue || 0);
-                if (qty > 0) activeDraftProdIds.add(prodId);
+
+            if (pedidosDb) {
+                const prodsSnap = await pedidosDb.collection('proveedores').doc(provName).collection('productos').get();
+                productsList = prodsSnap.docs.map(pDoc => {
+                    const pData = pDoc.data();
+                    const pResp = pData.responsable ? pData.responsable.trim() : 'Todos';
+                    return { id: pDoc.id, responsable: pResp };
+                });
+
+                const borradorDoc = await pedidosDb.collection('borradores').doc(provName).get();
+                if (borradorDoc.exists) {
+                    const draftItems = borradorDoc.data().items || {};
+                    for (const [prodId, val] of Object.entries(draftItems)) {
+                        const qty = typeof val === 'object' ? parseFloat(val.cantidad || val.qty || 0) : parseFloat(val || 0);
+                        if (qty > 0) activeDraftProdIds.add(prodId);
+                    }
+                }
+            } else {
+                const token = await getPedidosAuthToken();
+                const rawProds = await fetchPedidosFirestore(`proveedores/${encodeURIComponent(provName)}/productos`, token);
+                productsList = rawProds.map(pDoc => {
+                    const pId = pDoc.name.split('/').pop();
+                    const pFields = pDoc.fields || {};
+                    const pResp = pFields.responsable?.stringValue ? pFields.responsable.stringValue.trim() : 'Todos';
+                    return { id: pId, responsable: pResp };
+                });
+
+                const borradorDoc = await fetchPedidosDoc(`borradores/${encodeURIComponent(provName)}`, token);
+                const draftItems = borradorDoc?.fields?.items?.mapValue?.fields || {};
+                for (const [prodId, valObj] of Object.entries(draftItems)) {
+                    const qty = parseFloat(valObj.integerValue || valObj.doubleValue || valObj.stringValue || 0);
+                    if (qty > 0) activeDraftProdIds.add(prodId);
+                }
             }
 
             // C. Determinar la lista de responsables que tienen productos en este proveedor
