@@ -31,10 +31,33 @@ function getFirebaseToken() {
 }
 
 async function syncVersion() {
-    const VERSION = "11.63";
+    const VERSION = "11.64";
     const PROJECT_ID = "pedidos-rail-app-2025-87f2c";
     
-    console.log(`🚀 Sincronizando versión ${VERSION} con Firestore (REST API)...`);
+    console.log(`🚀 Sincronizando versión ${VERSION} con Firestore...`);
+
+    // Prioridad 1: Service Account (siempre disponible y sin expiración)
+    const saPath = path.join(__dirname, 'pedidos-service-account.json');
+    if (fs.existsSync(saPath)) {
+        try {
+            const admin = require('firebase-admin');
+            if (!admin.apps.length) {
+                admin.initializeApp({
+                    credential: admin.credential.cert(saPath),
+                    projectId: PROJECT_ID
+                });
+            }
+            const db = admin.firestore();
+            await db.collection("system").doc("config").set({
+                version: VERSION,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            console.log("✅ ¡ÉXITO! Versión actualizada en Firestore via Service Account.");
+            process.exit(0);
+        } catch (saErr) {
+            console.warn("⚠️ Falló con Service Account, intentando REST API:", saErr.message);
+        }
+    }
 
     try {
         const token = getFirebaseToken();

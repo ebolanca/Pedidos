@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.63';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.64';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
@@ -48,6 +48,45 @@ window.onerror = function (message, source, lineno, colno, error) {
 window.addEventListener('online', updateConnectionStatus);
 window.addEventListener('offline', updateConnectionStatus);
 updateConnectionStatus();
+
+// --- TOAST NOTIFICATIONS (NO BLOQUEANTE) ---
+let toastTimer = null;
+function showToast(text, type = "success", duration = 3500) {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "toast-container";
+        container.className = "toast-container";
+        container.innerHTML = `
+            <div id="toast-element" class="toast">
+                <span id="toast-icon" class="material-icons-round toast-icon"></span>
+                <span id="toast-text"></span>
+            </div>
+        `;
+        document.body.appendChild(container);
+    }
+    const element = document.getElementById("toast-element") || container.querySelector(".toast");
+    const icon = document.getElementById("toast-icon") || container.querySelector(".toast-icon");
+    const textEl = document.getElementById("toast-text") || container.querySelector("#toast-text");
+
+    if (textEl) textEl.innerHTML = text.replace(/\n/g, '<br>');
+    if (element) element.className = `toast ${type}`;
+    
+    let iconName = "check_circle";
+    if (type === "error") iconName = "error";
+    else if (type === "warning") iconName = "warning";
+    else if (type === "info") iconName = "info";
+    if (icon) icon.innerText = iconName;
+
+    container.classList.add("active");
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        container.classList.remove("active");
+    }, duration);
+}
+window.showToast = showToast;
+
 
 
 
@@ -1115,15 +1154,16 @@ function v8_compartir(metodo) {
 
 function guardarPedidoFinal() {
     haptic();
-    if (Object.keys(cart).length === 0) return alert("Vacío.");
-
-    let msgConfirm = "¿Enviar pedido y guardarlo en el historial?\n\n(Los productos seguirán marcados hasta que los borres manualmente)";
-    if (!navigator.onLine) msgConfirm += "\n\n⚠️ ESTÁS OFFLINE: El pedido se guardará en tu móvil y se enviará automáticamente cuando recuperes la conexión.";
-
-    if (!confirm(msgConfirm)) return;
+    if (Object.keys(cart).length === 0) {
+        showToast("⚠️ El pedido está vacío", "warning");
+        return;
+    }
 
     const btn = document.querySelector('.v8-send-btn');
-    btn.innerText = "..."; btn.disabled = true;
+    if (btn) {
+        btn.innerText = "...";
+        btn.disabled = true;
+    }
     const d = new Date().toISOString().split('T')[0];
     const id = `${d}_${currentProv.replace(/[^a-zA-Z0-9]/g, '')}_${userName.replace(/[^a-zA-Z0-9]/g, '')}`;
 
@@ -1132,10 +1172,26 @@ function guardarPedidoFinal() {
         fecha: firebase.firestore.FieldValue.serverTimestamp(), 
         fecha_corta: d, estado: "enviado", items: cart, notas: cartNotes
     }, { merge: true }).then(() => {
-        if (!navigator.onLine) alert("📴 Guardado OFFLINE. Se subirá al recuperar conexión.");
-        else alert("✅ Guardado en Historial.\nRECUERDA: Borra los productos cuando llegue la mercancía.");
-    }).catch(e => { alert("❌ Error: " + e.message); }).finally(() => {
-        btn.innerText = "ENVIAR"; btn.disabled = false;
+        haptic('success');
+        if (!navigator.onLine) {
+            showToast("📴 Guardado OFFLINE. Se subirá al recuperar conexión.", "info", 4000);
+        } else {
+            showToast("✅ Pedido enviado y guardado en Historial", "success", 3500);
+        }
+        if (btn) {
+            btn.innerText = "¡ENVIADO!";
+            setTimeout(() => {
+                btn.innerText = "ENVIAR";
+                btn.disabled = false;
+            }, 2000);
+        }
+    }).catch(e => {
+        haptic('error');
+        showToast("❌ Error al enviar: " + e.message, "error", 4000);
+        if (btn) {
+            btn.innerText = "ENVIAR";
+            btn.disabled = false;
+        }
     });
 }
 
@@ -1396,9 +1452,9 @@ function v8_copiarTextoHistorial() {
     if (!currentHistoryPedido) return;
     const texto = v8_generarTextoResumen(currentHistoryPedido);
     navigator.clipboard.writeText(texto).then(() => {
-        alert("✅ Texto copiado al portapapeles");
+        showToast("📋 Texto copiado al portapapeles", "success");
     }).catch(err => {
-        alert("No se pudo copiar automáticamente. Selecciónalo y cópialo manual.");
+        showToast("No se pudo copiar automáticamente", "error");
     });
 }
 
@@ -1408,7 +1464,7 @@ function v8_cargarPedidoHistorial() {
     provSelect.value = currentHistoryPedido.proveedor;
 
     if (provSelect.value !== currentHistoryPedido.proveedor) {
-        alert("⚠️ No tienes acceso a este proveedor o no existe en tu lista.");
+        showToast("⚠️ No tienes acceso a este proveedor o no existe en tu lista", "warning");
         return;
     }
 
@@ -1428,7 +1484,7 @@ function v8_cargarPedidoHistorial() {
             modalDet.style.display = "";
             modalDet.classList.remove("active");
         }
-        alert("✅ Pedido cargado correctamente.");
+        showToast("✅ Pedido cargado correctamente", "success");
     }, 500);
 }
 
