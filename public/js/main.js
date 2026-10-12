@@ -4,7 +4,7 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.64';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.65';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
@@ -178,10 +178,10 @@ function iniciarApp() {
 
             initV8_GestionMode();
 
-            // --- MANTENIMIENTO (Solo Admin) ---
-            if (userRole === 'admin') {
-                setTimeout(() => ejecutarMantenimientoPedidos(30), 5000); // Retraso para no saturar inicio
-            }
+            // --- MANTENIMIENTO: Desactivado para conservar todo el histórico de pedidos ---
+            // if (userRole === 'admin') {
+            //     setTimeout(() => ejecutarMantenimientoPedidos(30), 5000);
+            // }
 
         } else {
             redirectToLogin();
@@ -456,17 +456,78 @@ function v8_activarSyncRealTime() {
     });
 }
 
+function v8_utf8ToHex(str) {
+    try {
+        const bytes = new TextEncoder().encode(str);
+        let hex = '';
+        for (let i = 0; i < bytes.length; i++) {
+            hex += bytes[i].toString(16).padStart(2, '0');
+        }
+        return hex;
+    } catch (e) {
+        return encodeURIComponent(str).replace(/%/g, '');
+    }
+}
+
+function v8_hexToUtf8(hex) {
+    try {
+        if (!hex || hex.length % 2 !== 0) return null;
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < hex.length; i += 2) {
+            bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+        }
+        return new TextDecoder().decode(bytes);
+    } catch (e) {
+        return null;
+    }
+}
+
+function v8_formatProductName(str) {
+    if (!str || typeof str !== 'string') return "";
+    let s = str.trim();
+    if (!s) return "";
+    // Si viene todo en mayúsculas (y tiene más de 2 caracteres), pasarlo a minúsculas para unificar con el estilo del catálogo
+    if (s === s.toUpperCase() && s.length > 2) {
+        s = s.toLowerCase();
+    }
+    // Asegurar primera letra en mayúscula
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function v8_getNombreManual(id) {
+    if (!id || typeof id !== 'string') return "Manual";
+    if (!id.startsWith("manual_")) return id;
+
+    const parts = id.split('_');
+    // Nuevo formato seguro: manual_{timestamp}_hex_{hexString}
+    if (parts.length >= 4 && parts[2] === 'hex') {
+        const decoded = v8_hexToUtf8(parts[3]);
+        if (decoded) return v8_formatProductName(decoded);
+    }
+
+    // Compatibilidad con manuales antiguos (ej: manual_1712345678_TORTILLAS_DE_TRIGO)
+    if (parts.length >= 3) {
+        const legacyName = parts.slice(2).join(' ').replace(/_/g, ' ');
+        return v8_formatProductName(legacyName);
+    }
+
+    return "Producto Manual";
+}
+
 function v8_anadirManual() {
     haptic();
     if (!currentProv) return alert("Selecciona primero un proveedor.");
-    const nombre = prompt("📝 Nombre del producto nuevo:");
+    const nombreRaw = prompt("📝 Nombre del producto nuevo:");
+    if (!nombreRaw) return;
+    const nombre = v8_formatProductName(nombreRaw);
     if (!nombre) return;
     const cantStr = prompt("📦 Cantidad:");
     if (!cantStr) return;
     const cant = parseFloat(cantStr);
     if (isNaN(cant) || cant <= 0) return alert("Cantidad inválida");
-    const cleanName = nombre.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
-    const idManual = `manual_${Date.now()}_${cleanName}`;
+
+    const hexName = v8_utf8ToHex(nombre);
+    const idManual = `manual_${Date.now()}_hex_${hexName}`;
     cart[idManual] = cant;
 
     v8_setQty(idManual, cant);
@@ -892,9 +953,8 @@ function v8_renderTabla() {
     const allIds = new Set(allProducts.map(p => p.id));
     for (const [id, qty] of Object.entries(cart)) {
         if (!allIds.has(id) && id.startsWith("manual_")) {
-            const parts = id.split('_');
-            let realName = "Producto Manual";
-            if (parts.length >= 3) { realName = parts.slice(2).join(' ').replace(/_/g, ' '); }
+            const realName = v8_getNombreManual(id);
+            if (searchText && !realName.toLowerCase().includes(searchText)) continue;
             const manualProd = { id: id, nombre: realName, unidad: "Manual", categoria: "📌 Extras / Manual", esManual: true, responsable: "Todos" };
             if (!groups[manualProd.categoria]) groups[manualProd.categoria] = [];
             groups[manualProd.categoria].push(manualProd);
@@ -1164,13 +1224,71 @@ function guardarPedidoFinal() {
         btn.innerText = "...";
         btn.disabled = true;
     }
-    const d = new Date().toISOString().split('T')[0];
+    const ahora = new Date();
+    const d = ahora.toISOString().split('T')[0];
     const id = `${d}_${currentProv.replace(/[^a-zA-Z0-9]/g, '')}_${userName.replace(/[^a-zA-Z0-9]/g, '')}`;
 
+    // Metadatos de fecha y estacionalidad para análisis inteligente futuro
+    const diasSemana = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const diaNum = ahora.getDay() === 0 ? 7 : ahora.getDay();
+    const mesNum = ahora.getMonth() + 1;
+
+    // Cálculo de semana ISO del año (1-53)
+    const dUTC = new Date(Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
+    const dayOfWeek = dUTC.getUTCDay() || 7;
+    dUTC.setUTCDate(dUTC.getUTCDate() + 4 - dayOfWeek);
+    const startOfYear = new Date(Date.UTC(dUTC.getUTCFullYear(), 0, 1));
+    const semanaAnio = Math.ceil((((dUTC - startOfYear) / 86400000) + 1) / 7);
+
+    // Temporada
+    let temporada = "invierno";
+    if (mesNum >= 3 && mesNum <= 5) temporada = "primavera";
+    else if (mesNum >= 6 && mesNum <= 8) temporada = "verano";
+    else if (mesNum >= 9 && mesNum <= 11) temporada = "otoño";
+
+    // Instantánea descriptiva de los productos para que el histórico sea autónomo y permanente
+    const snapshotItems = {};
+    for (const [pid, qty] of Object.entries(cart)) {
+        if (qty > 0) {
+            if (pid.startsWith("manual_")) {
+                snapshotItems[pid] = {
+                    nombre: v8_getNombreManual(pid),
+                    unidad: "ud",
+                    categoria: "Manual",
+                    cantidad: qty
+                };
+            } else {
+                const p = allProducts.find(x => x.id === pid);
+                snapshotItems[pid] = {
+                    nombre: p ? p.nombre : pid,
+                    unidad: p && p.unidad ? p.unidad : "ud",
+                    categoria: p && p.categoria ? p.categoria : "General",
+                    cantidad: qty
+                };
+            }
+        }
+    }
+
     db.collection("pedidos").doc(id).set({
-        id_unico: id, usuario: userName, email: currentUser, proveedor: currentProv,
+        id_unico: id,
+        usuario: userName,
+        email: currentUser,
+        proveedor: currentProv,
         fecha: firebase.firestore.FieldValue.serverTimestamp(), 
-        fecha_corta: d, estado: "enviado", items: cart, notas: cartNotes
+        fecha_corta: d,
+        dia_semana: diasSemana[ahora.getDay()],
+        dia_semana_num: diaNum,
+        semana_anio: semanaAnio,
+        mes: mesNum,
+        mes_nombre: meses[ahora.getMonth()],
+        anio: ahora.getFullYear(),
+        temporada: temporada,
+        total_items: Object.keys(cart).length,
+        items_detalle: snapshotItems,
+        estado: "enviado",
+        items: cart,
+        notas: cartNotes
     }, { merge: true }).then(() => {
         haptic('success');
         if (!navigator.onLine) {
@@ -1225,8 +1343,7 @@ function v8_generarTextoResumen(pedidoData = null) {
     for (const [pid, qty] of Object.entries(items)) {
         if (qty > 0) {
             if (pid.startsWith("manual_")) {
-                const parts = pid.split('_');
-                const nombre = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') : "Extra";
+                const nombre = v8_getNombreManual(pid);
                 const nota = notes && notes[pid] ? ` (👀 ${notes[pid]})` : "";
                 manuales.push({ nombre, qty, unidad: "ud", nota });
             } else {
@@ -1413,8 +1530,7 @@ function renderDetalleConNombres(pedido, catalogoMap) {
             let nota = notes[pid] || "";
 
             if (pid.startsWith("manual_")) {
-                const parts = pid.split('_');
-                nombre = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') : "Extra Manual";
+                nombre = v8_getNombreManual(pid);
                 unidad = "ud";
             }
 
@@ -1719,7 +1835,10 @@ function v9_renderListaLector() {
             let precioReal = v9_currentData.catalogoPrecios ? v9_currentData.catalogoPrecios[k] : "";
 
             if (!nombreReal) {
-                if (k.startsWith("manual_")) { const parts = k.split('_'); nombreReal = parts.length >= 3 ? parts.slice(2).join(' ').replace(/_/g, ' ') + " (M)" : "Manual"; categoriaReal = "Manual"; }
+                if (k.startsWith("manual_")) {
+                    nombreReal = v8_getNombreManual(k) + " (M)";
+                    categoriaReal = "Manual";
+                }
                 else { const parts = k.split('_'); nombreReal = parts.length > 2 ? parts.slice(2).join(' ').replace(/_/g, ' ') : k; }
             }
             const tieneNota = notas[k] ? true : false;
@@ -1991,6 +2110,8 @@ window.v8_toggleFiltro = v8_toggleFiltro;
 window.v8_toggleExpansion = v8_toggleExpansion;
 window.v8_borrarBorrador = v8_borrarBorrador;
 window.v8_anadirManual = v8_anadirManual;
+window.v8_getNombreManual = v8_getNombreManual;
+window.v8_formatProductName = v8_formatProductName;
 window.v8_historialSimple = v8_historialSimple;
 window.v8_compartir = v8_compartir;
 window.guardarPedidoFinal = guardarPedidoFinal;
