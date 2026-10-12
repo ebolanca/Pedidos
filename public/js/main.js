@@ -4,10 +4,11 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.65';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.66';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
+import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.66';
 
 
 
@@ -232,6 +233,9 @@ function v9_salirModoLector() {
 
 function initV8_GestionMode() {
     document.getElementById('app-mode-gestion').classList.remove('hidden');
+
+    // Alertas de festivos a 7 días vista
+    renderHolidayAlerts('holiday-alerts-gestion');
 
     // Texto del rol
     document.getElementById('v8-roleDisplay').innerText = userRole === 'admin' ? "Administrador" : "Personal";
@@ -1610,6 +1614,9 @@ function v8_cargarPedidoHistorial() {
 
 function initV9_VisualMode() {
     document.getElementById('app-mode-visual').classList.remove('hidden');
+
+    // Alertas de festivos a 7 días vista en lector
+    renderHolidayAlerts('holiday-alerts-lector');
 
     // Solo cargamos los borradores pendientes, NO el historial
     v9_cargarProveedoresResumen();

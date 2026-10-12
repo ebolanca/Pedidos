@@ -1707,3 +1707,173 @@ input[type="text"] {
 .toast.warning .toast-icon { color: #f59e0b; }
 .toast.info .toast-icon { color: #3b82f6; }
 
+/* === BANNER DE ALERTAS DE FESTIVOS (PREVENTIVO 7 DÍAS) === */
+.holiday-alert-card {
+  margin: 12px 14px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #fde68a;
+  border-left: 5px solid #f59e0b;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12);
+  animation: fadeInAlert 0.4s ease-out;
+  position: relative;
+}
+
+@keyframes fadeInAlert {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.holiday-alert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.holiday-alert-badge {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid #fcd34d;
+}
+
+.holiday-alert-close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  color: #92400e;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: 0.2s;
+}
+
+.holiday-alert-close:hover {
+  background: rgba(180, 83, 9, 0.1);
+}
+
+.holiday-alert-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #78350f;
+  margin-bottom: 6px;
+}
+
+.holiday-alert-desc {
+  font-size: 13px;
+  color: #451a03;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.holiday-alert-list {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.holiday-alert-tip {
+  font-size: 12px;
+  font-style: italic;
+  color: #92400e;
+  border-top: 1px dashed #fcd34d;
+  padding-top: 6px;
+  margin-top: 8px;
+}
+
+.holiday-alert-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.holiday-badge-red {
+  font-size: 11px;
+  font-weight: 800;
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  white-space: nowrap;
+}
+
+.holiday-badge-green {
+  font-size: 11px;
+  font-weight: 800;
+  color: #065f46;
+  background: #d1fae5;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
+  white-space: nowrap;
+}
+
+.holiday-names-bold {
+  font-size: 13px;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.holiday-alert-override-box {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+
+.holiday-override-text {
+  font-size: 12.5px;
+  color: #78350f;
+  margin-bottom: 6px;
+}
+
+.holiday-override-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-holiday-confirm {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.btn-holiday-confirm.open {
+  background: #10b981;
+  color: white;
+}
+
+.btn-holiday-confirm.open:hover {
+  background: #059669;
+}
+
+.btn-holiday-confirm.close {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-holiday-confirm.close:hover {
+  background: #dc2626;
+}
+
+
+

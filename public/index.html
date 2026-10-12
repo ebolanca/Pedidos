@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
-    <link rel="stylesheet" href="css/styles.css?v=11.65">
+    <link rel="stylesheet" href="css/styles.css?v=11.66">
 </head>
 
 <body>
@@ -47,6 +47,9 @@
                 <span class="material-icons-round">qr_code_scanner</span> LECTOR
             </button>
         </div>
+        
+        <!-- BANNER ALERTAS DE FESTIVOS (PREVENTIVO 7 DÍAS) -->
+        <div id="holiday-alerts-gestion"></div>
 
         <div class="v8-prov-control">
             <select id="v8-proveedor" class="v8-select" onchange="v8_cambiarProveedor()">
@@ -130,6 +133,9 @@
                     </button>
                 </div>
             </div>
+            
+            <!-- BANNER ALERTAS DE FESTIVOS (PREVENTIVO 7 DÍAS EN LECTOR) -->
+            <div id="holiday-alerts-lector"></div>
 
             <div class="v9-list-container" id="v9-prov-list"></div>
 
@@ -345,7 +351,7 @@
         }
     </script>
 
-    <script type="module" src="js/main.js?v=11.65"></script>
+    <script type="module" src="js/main.js?v=11.66"></script>
 </body>
 
 </html>
