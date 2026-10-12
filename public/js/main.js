@@ -4,11 +4,11 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.66';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.67';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
-import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.66';
+import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.67';
 
 
 

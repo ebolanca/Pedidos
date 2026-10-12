@@ -11,7 +11,7 @@ import { db } from './firebase-init.js';
 export const HOLIDAY_PROVIDERS = {
     'Mercamadrid': {
         nombre: 'Mercamadrid',
-        diasCompra: [1, 2, 6], // Lunes (1), Martes (2), Sábado (6)
+        diasCompra: [2, 6], // Martes (2) y Sábado (6)
         cierraEnFestivo: true,
         requiereConfirmacion: true, // Acuerdos variables en puentes
         municipio: 'Madrid',
