@@ -4,11 +4,11 @@
 
 // IMPORTACIONES DE MÓDULOS
 import { firebaseConfig, ADMIN_EMAILS, MAPA_USUARIOS } from './config.js?v=11.61';
-import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.67';
+import { CURRENT_CLIENT_VERSION } from './modules/constants.js?v=11.68';
 import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils.js?v=11.61';
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
-import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.67';
+import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.68';
 
 
 
@@ -1157,26 +1157,82 @@ function v8_toggleFiltro(f) { haptic('light'); v8_filter = (v8_filter === f) ? '
 function v8_toggleExpansion() { haptic('light'); v8_expanded = !v8_expanded; v8_renderTabla(); }
 
 function v8_calcularSugerenciasBackground() {
-    db.collection("pedidos").where("proveedor", "==", currentProv).limit(20).get()
+    db.collection("pedidos").where("proveedor", "==", currentProv).limit(30).get()
         .then(snapHist => {
             if (snapHist.empty) return;
-            const sums = {}; const counts = {};
-            snapHist.forEach(doc => {
-                const items = doc.data().items || {};
+
+            const ahora = new Date();
+            const hoyDiaSemana = ahora.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
+            const esFinDeSemana = (hoyDiaSemana === 5 || hoyDiaSemana === 6 || hoyDiaSemana === 0);
+
+            // Ordenamos pedidos cronológicamente del más reciente al más antiguo
+            const docs = snapHist.docs.slice().sort((a, b) => {
+                const fa = a.data().fecha ? (a.data().fecha.toMillis ? a.data().fecha.toMillis() : new Date(a.data().fecha).getTime()) : 0;
+                const fb = b.data().fecha ? (b.data().fecha.toMillis ? b.data().fecha.toMillis() : new Date(b.data().fecha).getTime()) : 0;
+                return fb - fa;
+            });
+
+            const weightedSums = {};
+            const totalWeights = {};
+
+            docs.forEach(doc => {
+                const data = doc.data();
+                const items = data.items || {};
+
+                // Fecha y antigüedad en días
+                let fechaPedido = ahora;
+                if (data.fecha && data.fecha.toDate) fechaPedido = data.fecha.toDate();
+                else if (data.fecha) fechaPedido = new Date(data.fecha);
+                else if (data.fecha_corta) fechaPedido = new Date(data.fecha_corta);
+
+                const diasAntiguedad = Math.max(0, (ahora - fechaPedido) / (1000 * 60 * 60 * 24));
+                const diaSemanaPedido = fechaPedido.getDay();
+                const pedidoEsFinDeSemana = (diaSemanaPedido === 5 || diaSemanaPedido === 6 || diaSemanaPedido === 0);
+
+                // 1. PONDERACIÓN POR RECENCIA (Decay temporal hacia otoño-invierno):
+                // Últimos 7 días = 100%, 8-14 días = 70%, 15-21 días = 40%, >22 días (septiembre) = 15%
+                let pesoRecencia = 1.0;
+                if (diasAntiguedad > 21) pesoRecencia = 0.15;
+                else if (diasAntiguedad > 14) pesoRecencia = 0.40;
+                else if (diasAntiguedad > 7) pesoRecencia = 0.70;
+
+                // 2. PONDERACIÓN POR CICLO DE COMPRA (Entre semana vs Fin de semana):
+                let pesoCiclo = (esFinDeSemana === pedidoEsFinDeSemana) ? 1.6 : 0.6;
+
+                const pesoTotal = pesoRecencia * pesoCiclo;
+
                 for (const [pid, qty] of Object.entries(items)) {
                     const q = parseFloat(qty);
-                    if (q > 0) { sums[pid] = (sums[pid] || 0) + q; counts[pid] = (counts[pid] || 0) + 1; }
+                    if (q > 0) {
+                        weightedSums[pid] = (weightedSums[pid] || 0) + (q * pesoTotal);
+                        totalWeights[pid] = (totalWeights[pid] || 0) + pesoTotal;
+                    }
                 }
             });
-            for (const pid in sums) {
-                const avg = sums[pid] / counts[pid];
-                suggestions[pid] = Math.round(avg);
-                if (suggestions[pid] === 0) suggestions[pid] = null;
 
-                const sugSlot = document.getElementById(`sug_${pid}`);
-                if (sugSlot && suggestions[pid] > 0) sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})">${suggestions[pid]}</button>`;
+            for (const pid in weightedSums) {
+                if (totalWeights[pid] > 0) {
+                    const mediaPonderada = weightedSums[pid] / totalWeights[pid];
+
+                    // 3. REDONDEO PRUDENTE (Favorece contención para evitar sobrestock en cambio de temporada):
+                    let valorSugerido = 0;
+                    if (mediaPonderada <= 0.3) {
+                        valorSugerido = 0;
+                    } else if (mediaPonderada < 1) {
+                        valorSugerido = 1;
+                    } else {
+                        valorSugerido = Math.floor(mediaPonderada + 0.35);
+                    }
+
+                    suggestions[pid] = valorSugerido > 0 ? valorSugerido : null;
+
+                    const sugSlot = document.getElementById(`sug_${pid}`);
+                    if (sugSlot && suggestions[pid] > 0) {
+                        sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})" title="Sugerencia adaptada a últimas semanas">${suggestions[pid]}</button>`;
+                    }
+                }
             }
-        }).catch(e => { });
+        }).catch(e => { console.warn("Error en cálculo adaptativo de sugerencias:", e); });
 }
 
 function v8_compartir(metodo) {
