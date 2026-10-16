@@ -33,7 +33,7 @@ let writeDebounceTimer = null;
 let v9_currentData = {};
 let v9_checkedIds = new Set();
 let currentHistoryPedido = null;
-let v9_sortMode = 'alpha';
+let v9_sortMode = 'category';
 let currentIVAProduct = null;
 let v8_cat_status = {};
 
@@ -1681,12 +1681,20 @@ function initV9_VisualMode() {
 function v9_toggleSortMode() {
     haptic();
     const btn = document.getElementById('v9-sort-icon');
-    if (v9_sortMode === 'alpha') {
-        v9_sortMode = 'category';
-        btn.innerText = 'category';
-    } else {
+    if (v9_sortMode === 'category') {
         v9_sortMode = 'alpha';
-        btn.innerText = 'sort_by_alpha';
+        if (btn) {
+            btn.innerText = 'sort_by_alpha';
+            btn.title = 'Orden actual: Alfabético (clic para ordenar por categorías)';
+        }
+        showToast("Orden: Alfabético", "info");
+    } else {
+        v9_sortMode = 'category';
+        if (btn) {
+            btn.innerText = 'category';
+            btn.title = 'Orden actual: Categorías (clic para ordenar alfabéticamente)';
+        }
+        showToast("Orden: Por Categorías", "info");
     }
     v9_renderListaLector();
 }
@@ -1813,6 +1821,12 @@ async function v9_abrirProveedorResumen(provName) {
     document.getElementById("v9-prov-title").innerText = provName;
     document.getElementById("v9-prod-list").innerHTML = "<div style='padding:20px;text-align:center'>Cargando detalle...</div>";
     v9_checkedIds.clear();
+
+    const sortBtn = document.getElementById('v9-sort-icon');
+    if (sortBtn) {
+        sortBtn.innerText = (v9_sortMode === 'category') ? 'category' : 'sort_by_alpha';
+        sortBtn.title = (v9_sortMode === 'category') ? 'Orden actual: Categorías (clic para ordenar alfabéticamente)' : 'Orden actual: Alfabético (clic para ordenar por categorías)';
+    }
 
     try {
         const doc = await db.collection("borradores").doc(provName).get();

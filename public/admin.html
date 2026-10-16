@@ -191,7 +191,24 @@
 
                 <div class="form-group">
                     <label class="form-label" for="prod-category">Categoría *</label>
-                    <input type="text" id="prod-category" class="form-input" required placeholder="Ej: Verduras, Limpieza">
+                    <input type="text" id="prod-category" list="lista-categorias-oficiales" class="form-input" required placeholder="Selecciona o escribe categoría">
+                    <datalist id="lista-categorias-oficiales">
+                        <option value="Bebidas y Cafés">
+                        <option value="Bodega y Alcoholes">
+                        <option value="Carnes y Aves">
+                        <option value="Condimentos y Especias">
+                        <option value="Congelados y Elaborados">
+                        <option value="Conservas, Salsas y Encurtidos">
+                        <option value="Desechables y Envases">
+                        <option value="Despensa y Secos">
+                        <option value="Frutas y Verduras">
+                        <option value="Lácteos y Huevos">
+                        <option value="Limpieza y Químicos">
+                        <option value="Menaje y Utensilios">
+                        <option value="Oficina y Mantenimiento">
+                        <option value="Panadería y Repostería">
+                        <option value="Pescados y Mariscos">
+                    </datalist>
                 </div>
 
                 <div class="form-group">
@@ -300,7 +317,7 @@
 
                 <div class="form-group">
                     <label class="form-label" for="bulk-category">Cambiar Categoría (Opcional)</label>
-                    <input type="text" id="bulk-category" class="form-input" placeholder="Ej: Lácteos (vacío para mantener actual)">
+                    <input type="text" id="bulk-category" list="lista-categorias-oficiales" class="form-input" placeholder="Selecciona o escribe categoría (vacío para mantener actual)">
                 </div>
 
                 <div class="form-actions">
