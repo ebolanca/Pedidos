@@ -1,6 +1,6 @@
 /* public/sw.js */
 // CAMBIA ESTE NOMBRE PARA FORZAR LA ACTUALIZACIÓN EN LOS MÓVILES
-const CACHE_NAME = 'rail-app-cache-v11.71';
+const CACHE_NAME = 'rail-app-cache-v11.72';
 
 const ASSETS_TO_CACHE = [
   './',

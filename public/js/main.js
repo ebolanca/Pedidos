@@ -30,6 +30,7 @@ let suggestions = {};
 let v8_inputMode = 'direct'; // 'direct' | 'inventory'
 let inventoryCounts = {}; // { [pid]: number }
 let idealStocks = {}; // { [pid]: number }
+let idealLabels = {}; // { [pid]: string }
 let v8_filter = 'todos', v8_expanded = true;
 let v8_unsub = null, v8_dash_unsub = null;
 let writeDebounceTimer = null;
@@ -426,7 +427,7 @@ function v8_cambiarProveedor() {
     bottomBar.classList.remove("hidden");
     document.getElementById("v8-tabla-wrapper").innerHTML = v8_renderSkeleton();
     
-    cart = {}; cartNotes = {}; suggestions = {}; inventoryCounts = {}; idealStocks = {}; v8_inputMode = 'direct';
+    cart = {}; cartNotes = {}; suggestions = {}; inventoryCounts = {}; idealStocks = {}; idealLabels = {}; v8_inputMode = 'direct';
     const btnDirect = document.getElementById('v8-btnModeDirect');
     const btnInv = document.getElementById('v8-btnModeInventory');
     if (btnDirect) btnDirect.classList.add('active');
@@ -1120,7 +1121,8 @@ function v8_renderTabla() {
                 const needQty = cart[p.id] || 0;
                 const needActiveClass = (needQty > 0) ? 'active' : '';
 
-                idealBadgeHtml = `<div class="v8-ideal-tag" id="ideal_lbl_${p.id}">Ideal otoño (-30%): ${idealVal}</div>`;
+                const idealText = idealLabels[p.id] || (idealVal > 0 ? `Ideal: ${idealVal}` : 'Sin histórico');
+                idealBadgeHtml = `<div class="v8-ideal-tag" id="ideal_lbl_${p.id}">${idealText}</div>`;
 
                 controlAreaHtml = `
                     <div class="v8-inv-controls">
@@ -1254,7 +1256,8 @@ function v8_calcularSugerenciasBackground() {
 
             const ahora = new Date();
             const hoyDiaSemana = ahora.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
-            // En hostelería: Jueves a Domingo se considera ciclo de fin de semana
+            // En hostelería: Jueves a Domingo se considera ciclo de fin de semana (terraza/abastecimiento fuerte)
+            // Lunes a Miércoles se considera ciclo de entre semana
             const esFinDeSemana = (hoyDiaSemana === 4 || hoyDiaSemana === 5 || hoyDiaSemana === 6 || hoyDiaSemana === 0);
 
             // Ordenamos pedidos cronológicamente del más reciente al más antiguo
@@ -1264,8 +1267,14 @@ function v8_calcularSugerenciasBackground() {
                 return fb - fa;
             });
 
-            const weightedSums = {};
-            const totalWeights = {};
+            // Acumuladores separados para ventana reciente (últimas 2 semanas) y ventana histórica (> 14 días)
+            const sumReciente = {};
+            const weightReciente = {};
+            const countReciente = {};
+
+            const sumAntiguo = {};
+            const weightAntiguo = {};
+            const countAntiguo = {};
 
             docs.forEach(doc => {
                 const data = doc.data();
@@ -1281,73 +1290,127 @@ function v8_calcularSugerenciasBackground() {
                 const diaSemanaPedido = fechaPedido.getDay();
                 const pedidoEsFinDeSemana = (diaSemanaPedido === 4 || diaSemanaPedido === 5 || diaSemanaPedido === 6 || diaSemanaPedido === 0);
 
-                // 1. PONDERACIÓN POR RECENCIA (Decay temporal hacia otoño-invierno):
-                let pesoRecencia = 1.0;
-                if (diasAntiguedad > 21) pesoRecencia = 0.20;
-                else if (diasAntiguedad > 14) pesoRecencia = 0.50;
-                else if (diasAntiguedad > 7) pesoRecencia = 0.80;
+                // Multiplicador por afinidad de ciclo (finde vs entre semana)
+                const multCiclo = (esFinDeSemana === pedidoEsFinDeSemana) ? 2.0 : 0.5;
 
-                // 2. PONDERACIÓN POR CICLO DE COMPRA (Entre semana vs Fin de semana):
-                let pesoCiclo = (esFinDeSemana === pedidoEsFinDeSemana) ? 2.0 : 0.4;
+                // Clasificación por ventana temporal:
+                // Reciente (últimas 2 semanas / <= 14 días): refleja el clima actual y consumo real frío/otoño
+                // Antiguo (> 14 días): pedidos históricos de verano/septiembre
+                const esReciente = (diasAntiguedad <= 14);
 
-                const pesoTotal = pesoRecencia * pesoCiclo;
+                let pesoTemporal = 1.0;
+                if (esReciente) {
+                    // Últimos 7 días: peso 1.0. De 8 a 14 días: peso 0.85
+                    pesoTemporal = (diasAntiguedad <= 7) ? 1.0 : 0.85;
+                } else {
+                    // Decay temporal progresivo para datos históricos
+                    if (diasAntiguedad <= 28) pesoTemporal = 0.50;
+                    else if (diasAntiguedad <= 45) pesoTemporal = 0.30;
+                    else pesoTemporal = 0.15;
+                }
+
+                const pesoDoc = pesoTemporal * multCiclo;
 
                 for (const [pid, qty] of Object.entries(items)) {
                     const q = parseFloat(qty);
                     if (q > 0) {
-                        weightedSums[pid] = (weightedSums[pid] || 0) + (q * pesoTotal);
-                        totalWeights[pid] = (totalWeights[pid] || 0) + pesoTotal;
+                        if (esReciente) {
+                            sumReciente[pid] = (sumReciente[pid] || 0) + (q * pesoDoc);
+                            weightReciente[pid] = (weightReciente[pid] || 0) + pesoDoc;
+                            countReciente[pid] = (countReciente[pid] || 0) + 1;
+                        } else {
+                            sumAntiguo[pid] = (sumAntiguo[pid] || 0) + (q * pesoDoc);
+                            weightAntiguo[pid] = (weightAntiguo[pid] || 0) + pesoDoc;
+                            countAntiguo[pid] = (countAntiguo[pid] || 0) + 1;
+                        }
                     }
                 }
             });
 
-            // FACTOR DE AJUSTE ESTACIONAL OTOÑAL: -30% respecto a principios de mes / verano
-            const FACTOR_OTONO = 0.70;
+            // Factor de contención estacional preventiva de otoño (-30%)
+            // Solo se aplica preventivamente sobre datos antiguos de verano cuando NO hay datos recientes
+            const FACTOR_TRANSICION_OTONO = 0.70;
 
-            for (const pid in weightedSums) {
-                if (totalWeights[pid] > 0) {
-                    const mediaPonderadaBase = weightedSums[pid] / totalWeights[pid];
-                    const mediaPonderada = mediaPonderadaBase * FACTOR_OTONO;
+            const todosPids = new Set([...Object.keys(weightReciente), ...Object.keys(weightAntiguo)]);
 
-                    // REDONDEO PRUDENTE:
-                    let valorSugerido = 0;
-                    if (mediaPonderada <= 0.3) {
-                        valorSugerido = 0;
-                    } else if (mediaPonderada < 1) {
-                        valorSugerido = 1;
-                    } else {
-                        valorSugerido = Math.floor(mediaPonderada + 0.35);
-                    }
+            todosPids.forEach(pid => {
+                const wReciente = weightReciente[pid] || 0;
+                const wAntiguo = weightAntiguo[pid] || 0;
+                const cReciente = countReciente[pid] || 0;
 
-                    suggestions[pid] = valorSugerido > 0 ? valorSugerido : null;
-                    idealStocks[pid] = valorSugerido > 0 ? valorSugerido : 0;
+                let mediaFinal = 0;
+                let tipoOrigen = "";
+                let tooltip = "";
 
-                    // Si ya había inventario puesto, recalcular necesidad al vuelo
-                    if (inventoryCounts[pid] !== undefined) {
-                        const stockTengo = inventoryCounts[pid];
-                        const necesidad = Math.max(0, (idealStocks[pid] || 0) - stockTengo);
-                        if (necesidad > 0) cart[pid] = parseFloat(necesidad.toFixed(2));
-                        else delete cart[pid];
+                if (wReciente > 0 && cReciente >= 2) {
+                    // Si ya hay 2 o más pedidos en las últimas 2 semanas frías/lluviosas,
+                    // replicamos directamente esas semanas SIN aplicar descuento extra
+                    mediaFinal = sumReciente[pid] / wReciente;
+                    tipoOrigen = "Ideal reciente";
+                    tooltip = `Replicando últimas 2 semanas (${mediaFinal.toFixed(1)})`;
+                } else if (wReciente > 0 && wAntiguo > 0) {
+                    // Transición adaptativa: 1 pedido reciente y datos antiguos
+                    const mediaRec = sumReciente[pid] / wReciente;
+                    const mediaAnt = (sumAntiguo[pid] / wAntiguo) * FACTOR_TRANSICION_OTONO;
+                    // Prioridad 75% a la semana reciente fría y 25% al histórico corregido
+                    mediaFinal = (mediaRec * 0.75) + (mediaAnt * 0.25);
+                    tipoOrigen = "Ideal adaptado";
+                    tooltip = `Adaptado: reciente (${mediaRec.toFixed(1)}) + histórico corregido (${mediaAnt.toFixed(1)})`;
+                } else if (wReciente > 0) {
+                    // Solo 1 pedido reciente
+                    mediaFinal = sumReciente[pid] / wReciente;
+                    tipoOrigen = "Ideal reciente";
+                    tooltip = `Basado en última semana (${mediaFinal.toFixed(1)})`;
+                } else if (wAntiguo > 0) {
+                    // Sin pedidos en las últimas 2 semanas: datos de verano
+                    // Aplicamos factor preventivo de otoño (-30%) para evitar sobrestock
+                    mediaFinal = (sumAntiguo[pid] / wAntiguo) * FACTOR_TRANSICION_OTONO;
+                    tipoOrigen = "Ideal temporada (-30%)";
+                    tooltip = `Estimación preventiva cambio temporada (-30%): ${mediaFinal.toFixed(1)}`;
+                }
 
-                        const needBadge = document.getElementById(`need_badge_${pid}`);
-                        if (needBadge) {
-                            needBadge.innerText = cart[pid] || 0;
-                            if ((cart[pid] || 0) > 0) needBadge.classList.add('active');
-                            else needBadge.classList.remove('active');
-                        }
-                    }
+                // Redondeo prudente para evitar sobrestock en cambio estacional
+                let valorSugerido = 0;
+                if (mediaFinal <= 0.3) {
+                    valorSugerido = 0;
+                } else if (mediaFinal < 1) {
+                    valorSugerido = 1;
+                } else {
+                    valorSugerido = Math.floor(mediaFinal + 0.35);
+                }
 
-                    const sugSlot = document.getElementById(`sug_${pid}`);
-                    if (sugSlot && suggestions[pid] > 0) {
-                        sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})" title="Consumo estimado otoño (-30%): ${suggestions[pid]}">${suggestions[pid]}</button>`;
-                    }
+                suggestions[pid] = valorSugerido > 0 ? valorSugerido : null;
+                idealStocks[pid] = valorSugerido > 0 ? valorSugerido : 0;
+                idealLabels[pid] = `${tipoOrigen}: ${valorSugerido}`;
 
-                    const idealLbl = document.getElementById(`ideal_lbl_${pid}`);
-                    if (idealLbl) {
-                        idealLbl.innerText = `Ideal otoño (-30%): ${valorSugerido}`;
+                // Si ya había inventario puesto, recalcular necesidad al vuelo
+                if (inventoryCounts[pid] !== undefined) {
+                    const stockTengo = inventoryCounts[pid];
+                    const necesidad = Math.max(0, (idealStocks[pid] || 0) - stockTengo);
+                    if (necesidad > 0) cart[pid] = parseFloat(necesidad.toFixed(2));
+                    else delete cart[pid];
+
+                    const needBadge = document.getElementById(`need_badge_${pid}`);
+                    if (needBadge) {
+                        needBadge.innerText = cart[pid] || 0;
+                        if ((cart[pid] || 0) > 0) needBadge.classList.add('active');
+                        else needBadge.classList.remove('active');
                     }
                 }
-            }
+
+                // Actualizar botón sugerencia en modo directo
+                const sugSlot = document.getElementById(`sug_${pid}`);
+                if (sugSlot && suggestions[pid] > 0) {
+                    sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})" title="${tooltip}">${suggestions[pid]}</button>`;
+                }
+
+                // Actualizar badge ideal en modo inventario
+                const idealLbl = document.getElementById(`ideal_lbl_${pid}`);
+                if (idealLbl) {
+                    idealLbl.innerText = `${tipoOrigen}: ${valorSugerido}`;
+                }
+            });
+
             v8_actualizarValoresEnTabla();
         }).catch(e => { console.warn("Error en cálculo adaptativo de sugerencias:", e); });
 }
@@ -1461,6 +1524,8 @@ function guardarPedidoFinal() {
         mes_nombre: meses[ahora.getMonth()],
         anio: ahora.getFullYear(),
         temporada: temporada,
+        ciclo: (ahora.getDay() === 4 || ahora.getDay() === 5 || ahora.getDay() === 6 || ahora.getDay() === 0) ? 'finde' : 'semana',
+        es_fin_de_semana: (ahora.getDay() === 4 || ahora.getDay() === 5 || ahora.getDay() === 6 || ahora.getDay() === 0),
         total_items: Object.keys(cart).length,
         items_detalle: snapshotItems,
         estado: "enviado",
