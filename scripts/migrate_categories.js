@@ -15,7 +15,8 @@ const db = admin.firestore();
 // TAXONOMÍA MAESTRA DE CATEGORÍAS GENÉRICAS
 // =========================================================================
 const CATEGORIAS_OFICIALES = [
-    "Frutas y Verduras",
+    "Frutas",
+    "Verduras",
     "Carnes y Aves",
     "Pescados y Mariscos",
     "Lácteos y Huevos",
@@ -34,10 +35,10 @@ const CATEGORIAS_OFICIALES = [
 
 // Mapeo directo de las categorías antiguas ultra-específicas a las genéricas
 const MAPA_CATEGORIAS_EXISTENTES = {
-    // Frutas y verduras
-    "Fruta": "Frutas y Verduras",
-    "Verdura": "Frutas y Verduras",
-    "Hierbas": "Frutas y Verduras",
+    // Frutas y verduras separadas
+    "Fruta": "Frutas",
+    "Verdura": "Verduras",
+    "Hierbas": "Verduras",
 
     // Carnes
     "Carnes": "Carnes y Aves",
