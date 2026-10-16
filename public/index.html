@@ -71,6 +71,15 @@
                     oninput="v8_filtrarProductos()">
             </div>
 
+            <div class="v8-mode-toggle-pill" id="v8-mode-toggle-container">
+                <button type="button" class="v8-mode-btn active" id="v8-btnModeDirect" onclick="v8_cambiarModoEntrada('direct')">
+                    <span class="material-icons-round">shopping_cart</span> Pedir Directo
+                </button>
+                <button type="button" class="v8-mode-btn" id="v8-btnModeInventory" onclick="v8_cambiarModoEntrada('inventory')">
+                    <span class="material-icons-round">inventory_2</span> Contar Stock (Tengo)
+                </button>
+            </div>
+
             <div class="v8-filtros-container">
                 <button class="v8-btn-filtro" id="v8-btnPedido" onclick="v8_toggleFiltro('pedido')">🛒 Pedido</button>
                 <button class="v8-btn-filtro" id="v8-btnFav" onclick="v8_toggleFiltro('favoritos')">⭐ Favs</button>
@@ -248,7 +257,7 @@
         }
     </script>
 
-    <script type="module" src="js/main.js?v=11.70"></script>
+    <script type="module" src="js/main.js?v=11.71"></script>
 </body>
 
 </html>

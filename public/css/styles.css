@@ -1875,5 +1875,142 @@ input[type="text"] {
   background: #dc2626;
 }
 
+/* === MODO HÍBRIDO (PEDIR DIRECTO / CONTAR STOCK) === */
+.v8-mode-toggle-pill {
+  display: flex;
+  background: #e2e8f0;
+  padding: 4px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+  gap: 4px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.v8-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.v8-mode-btn .material-icons-round {
+  font-size: 18px;
+}
+
+.v8-mode-btn.active {
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.v8-mode-btn#v8-btnModeInventory.active {
+  color: #0284c7;
+}
+
+.v8-mode-btn#v8-btnModeDirect.active {
+  color: #2563eb;
+}
+
+/* Controles de inventario en la fila de producto */
+.v8-inv-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.v8-inv-block, .v8-need-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.v8-inv-label, .v8-need-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.v8-qty-inv {
+  width: 58px;
+  height: 40px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.v8-qty-inv:focus {
+  border-color: #0284c7;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.v8-inv-arrow {
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 800;
+  margin-top: 14px;
+}
+
+.v8-need-badge {
+  min-width: 54px;
+  height: 40px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.v8-need-badge.active {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 2px solid #60a5fa;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+}
+
+/* Badge de ideal con ajuste estacional */
+.v8-ideal-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  margin-top: 3px;
+  width: fit-content;
+}
+
 
 

@@ -27,6 +27,9 @@ import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.68';
 let currentUser, userRole, userName, currentProv, currentLectorProv, userAllowedNames = [];
 let allProducts = [], cart = {}, cartNotes = {}, favorites = new Set();
 let suggestions = {};
+let v8_inputMode = 'direct'; // 'direct' | 'inventory'
+let inventoryCounts = {}; // { [pid]: number }
+let idealStocks = {}; // { [pid]: number }
 let v8_filter = 'todos', v8_expanded = true;
 let v8_unsub = null, v8_dash_unsub = null;
 let writeDebounceTimer = null;
@@ -423,7 +426,11 @@ function v8_cambiarProveedor() {
     bottomBar.classList.remove("hidden");
     document.getElementById("v8-tabla-wrapper").innerHTML = v8_renderSkeleton();
     
-    cart = {}; cartNotes = {}; suggestions = {};
+    cart = {}; cartNotes = {}; suggestions = {}; inventoryCounts = {}; idealStocks = {}; v8_inputMode = 'direct';
+    const btnDirect = document.getElementById('v8-btnModeDirect');
+    const btnInv = document.getElementById('v8-btnModeInventory');
+    if (btnDirect) btnDirect.classList.add('active');
+    if (btnInv) btnInv.classList.remove('active');
 
     db.collection("proveedores").doc(currentProv).collection("productos").get()
         .then(async snapProds => {
@@ -616,6 +623,60 @@ function v8_add(id, amount) {
     v8_actualizarValoresEnTabla();
     v8_escribirEnBorrador();
     v8_renderTabla();
+}
+
+function v8_cambiarModoEntrada(mode) {
+    haptic('light');
+    v8_inputMode = mode;
+    const btnDirect = document.getElementById('v8-btnModeDirect');
+    const btnInv = document.getElementById('v8-btnModeInventory');
+    if (btnDirect && btnInv) {
+        if (mode === 'direct') {
+            btnDirect.classList.add('active');
+            btnInv.classList.remove('active');
+            showToast("Modo: Pedir Directo", "info");
+        } else {
+            btnInv.classList.add('active');
+            btnDirect.classList.remove('active');
+            showToast("Modo: Contar Stock (Tengo)", "info");
+        }
+    }
+    v8_renderTabla();
+}
+
+function v8_setInventory(id, val) {
+    const oldQty = cart[id] || 0;
+    if (val === "" || val === null || val === undefined) {
+        delete inventoryCounts[id];
+        delete cart[id];
+    } else {
+        const numVal = parseFloat(val);
+        if (isNaN(numVal) || numVal < 0) {
+            delete inventoryCounts[id];
+            delete cart[id];
+        } else {
+            inventoryCounts[id] = numVal;
+            const ideal = (idealStocks[id] !== undefined) ? idealStocks[id] : (suggestions[id] || 0);
+            const necesidad = Math.max(0, ideal - numVal);
+            if (necesidad > 0) {
+                cart[id] = parseFloat(necesidad.toFixed(2));
+            } else {
+                delete cart[id];
+            }
+        }
+    }
+
+    const needBadge = document.getElementById(`need_badge_${id}`);
+    const needVal = cart[id] || 0;
+    if (needBadge) {
+        needBadge.innerText = needVal;
+        if (needVal > 0) needBadge.classList.add('active');
+        else needBadge.classList.remove('active');
+    }
+
+    v8_autoGestionPeso(id, cart[id] || 0, oldQty);
+    v8_actualizarValoresEnTabla();
+    v8_escribirEnBorrador();
 }
 
 function v8_autoGestionPeso(id, newQty, oldQty) {
@@ -1050,6 +1111,41 @@ function v8_renderTabla() {
                 }
             }
 
+            let controlAreaHtml = "";
+            let idealBadgeHtml = "";
+
+            if (v8_inputMode === 'inventory') {
+                const idealVal = (idealStocks[p.id] !== undefined) ? idealStocks[p.id] : (suggestions[p.id] || 0);
+                const stockTengo = (inventoryCounts[p.id] !== undefined) ? inventoryCounts[p.id] : "";
+                const needQty = cart[p.id] || 0;
+                const needActiveClass = (needQty > 0) ? 'active' : '';
+
+                idealBadgeHtml = `<div class="v8-ideal-tag" id="ideal_lbl_${p.id}">Ideal otoño (-30%): ${idealVal}</div>`;
+
+                controlAreaHtml = `
+                    <div class="v8-inv-controls">
+                        <div class="v8-inv-block">
+                            <span class="v8-inv-label">Tengo</span>
+                            <input type="number" inputmode="decimal" class="v8-qty-inv" value="${stockTengo}" id="inv_${p.id}" 
+                                   placeholder="0" onfocus="this.select()" oninput="v8_setInventory('${p.id}', this.value)">
+                        </div>
+                        <div class="v8-inv-arrow">➔</div>
+                        <div class="v8-need-block">
+                            <span class="v8-need-label">Pedir</span>
+                            <span class="v8-need-badge ${needActiveClass}" id="need_badge_${p.id}">${needQty > 0 ? needQty : 0}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                controlAreaHtml = `
+                    <div style="display:flex; align-items:center; gap:8px">
+                        ${sugHtml}
+                        <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
+                            placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    </div>
+                `;
+            }
+
             // SI ES ADMIN (quiebrakanto), VE TODA LA HERRAMIENTA
             if (esAdmin) {
                 let semaforoHtml = "";
@@ -1083,13 +1179,10 @@ function v8_renderTabla() {
                                     <div class="v8-prod-name">${p.nombre}</div>
                                     <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
                                 </div>
+                                ${idealBadgeHtml}
                             </div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px">
-                            ${sugHtml}
-                            <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
-                                placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
-                        </div>
+                        ${controlAreaHtml}
                     </div>
                     <div class="v8-row-details">
                         <span class="v8-prod-unit">${p.unidad || ''}</span>
@@ -1109,7 +1202,6 @@ function v8_renderTabla() {
 
             } else {
                 // SI ES TRABAJADOR
-                // Usamos estilo simple (fila única) para evitar problemas de espacio vertical excesivo y datos innecesarios
                 row.className = rowClass + " v8-row-simple";
 
                 row.innerHTML = `
@@ -1120,14 +1212,13 @@ function v8_renderTabla() {
                                 <div class="v8-prod-name">${p.nombre}</div>
                                 <span class="material-icons-round v8-note-icon ${hasNote}" id="note_${p.id}" onclick="v8_editarNota('${p.id}', '${p.nombre.replace(/'/g, "")}')">edit</span>
                             </div>
+                            ${idealBadgeHtml}
                             <div style="display:flex; align-items:center; margin-top:4px;">
                                 <span class="v8-prod-unit">${p.unidad || ''}</span>
                             </div>
                         </div>
                     </div>
-                    ${sugHtml}
-                    <input type="number" inputmode="decimal" class="v8-qty-simple" value="${qty}" id="inp_${p.id}" 
-                           placeholder="0" onfocus="this.select()" onkeyup="v8_setQty('${p.id}', this.value)" onchange="v8_setQty('${p.id}', this.value)">
+                    ${controlAreaHtml}
                 `;
             }
 
@@ -1157,13 +1248,14 @@ function v8_toggleFiltro(f) { haptic('light'); v8_filter = (v8_filter === f) ? '
 function v8_toggleExpansion() { haptic('light'); v8_expanded = !v8_expanded; v8_renderTabla(); }
 
 function v8_calcularSugerenciasBackground() {
-    db.collection("pedidos").where("proveedor", "==", currentProv).limit(30).get()
+    db.collection("pedidos").where("proveedor", "==", currentProv).get()
         .then(snapHist => {
             if (snapHist.empty) return;
 
             const ahora = new Date();
             const hoyDiaSemana = ahora.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
-            const esFinDeSemana = (hoyDiaSemana === 5 || hoyDiaSemana === 6 || hoyDiaSemana === 0);
+            // En hostelería: Jueves a Domingo se considera ciclo de fin de semana
+            const esFinDeSemana = (hoyDiaSemana === 4 || hoyDiaSemana === 5 || hoyDiaSemana === 6 || hoyDiaSemana === 0);
 
             // Ordenamos pedidos cronológicamente del más reciente al más antiguo
             const docs = snapHist.docs.slice().sort((a, b) => {
@@ -1187,17 +1279,16 @@ function v8_calcularSugerenciasBackground() {
 
                 const diasAntiguedad = Math.max(0, (ahora - fechaPedido) / (1000 * 60 * 60 * 24));
                 const diaSemanaPedido = fechaPedido.getDay();
-                const pedidoEsFinDeSemana = (diaSemanaPedido === 5 || diaSemanaPedido === 6 || diaSemanaPedido === 0);
+                const pedidoEsFinDeSemana = (diaSemanaPedido === 4 || diaSemanaPedido === 5 || diaSemanaPedido === 6 || diaSemanaPedido === 0);
 
                 // 1. PONDERACIÓN POR RECENCIA (Decay temporal hacia otoño-invierno):
-                // Últimos 7 días = 100%, 8-14 días = 70%, 15-21 días = 40%, >22 días (septiembre) = 15%
                 let pesoRecencia = 1.0;
-                if (diasAntiguedad > 21) pesoRecencia = 0.15;
-                else if (diasAntiguedad > 14) pesoRecencia = 0.40;
-                else if (diasAntiguedad > 7) pesoRecencia = 0.70;
+                if (diasAntiguedad > 21) pesoRecencia = 0.20;
+                else if (diasAntiguedad > 14) pesoRecencia = 0.50;
+                else if (diasAntiguedad > 7) pesoRecencia = 0.80;
 
                 // 2. PONDERACIÓN POR CICLO DE COMPRA (Entre semana vs Fin de semana):
-                let pesoCiclo = (esFinDeSemana === pedidoEsFinDeSemana) ? 1.6 : 0.6;
+                let pesoCiclo = (esFinDeSemana === pedidoEsFinDeSemana) ? 2.0 : 0.4;
 
                 const pesoTotal = pesoRecencia * pesoCiclo;
 
@@ -1210,11 +1301,15 @@ function v8_calcularSugerenciasBackground() {
                 }
             });
 
+            // FACTOR DE AJUSTE ESTACIONAL OTOÑAL: -30% respecto a principios de mes / verano
+            const FACTOR_OTONO = 0.70;
+
             for (const pid in weightedSums) {
                 if (totalWeights[pid] > 0) {
-                    const mediaPonderada = weightedSums[pid] / totalWeights[pid];
+                    const mediaPonderadaBase = weightedSums[pid] / totalWeights[pid];
+                    const mediaPonderada = mediaPonderadaBase * FACTOR_OTONO;
 
-                    // 3. REDONDEO PRUDENTE (Favorece contención para evitar sobrestock en cambio de temporada):
+                    // REDONDEO PRUDENTE:
                     let valorSugerido = 0;
                     if (mediaPonderada <= 0.3) {
                         valorSugerido = 0;
@@ -1225,13 +1320,35 @@ function v8_calcularSugerenciasBackground() {
                     }
 
                     suggestions[pid] = valorSugerido > 0 ? valorSugerido : null;
+                    idealStocks[pid] = valorSugerido > 0 ? valorSugerido : 0;
+
+                    // Si ya había inventario puesto, recalcular necesidad al vuelo
+                    if (inventoryCounts[pid] !== undefined) {
+                        const stockTengo = inventoryCounts[pid];
+                        const necesidad = Math.max(0, (idealStocks[pid] || 0) - stockTengo);
+                        if (necesidad > 0) cart[pid] = parseFloat(necesidad.toFixed(2));
+                        else delete cart[pid];
+
+                        const needBadge = document.getElementById(`need_badge_${pid}`);
+                        if (needBadge) {
+                            needBadge.innerText = cart[pid] || 0;
+                            if ((cart[pid] || 0) > 0) needBadge.classList.add('active');
+                            else needBadge.classList.remove('active');
+                        }
+                    }
 
                     const sugSlot = document.getElementById(`sug_${pid}`);
                     if (sugSlot && suggestions[pid] > 0) {
-                        sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})" title="Sugerencia adaptada a últimas semanas">${suggestions[pid]}</button>`;
+                        sugSlot.innerHTML = `<button class="v8-btn-sug" onclick="v8_setQty('${pid}', ${suggestions[pid]})" title="Consumo estimado otoño (-30%): ${suggestions[pid]}">${suggestions[pid]}</button>`;
+                    }
+
+                    const idealLbl = document.getElementById(`ideal_lbl_${pid}`);
+                    if (idealLbl) {
+                        idealLbl.innerText = `Ideal otoño (-30%): ${valorSugerido}`;
                     }
                 }
             }
+            v8_actualizarValoresEnTabla();
         }).catch(e => { console.warn("Error en cálculo adaptativo de sugerencias:", e); });
 }
 
@@ -2529,3 +2646,5 @@ window.calculateUnitPrice = calculateUnitPrice;
 window.copyUnitResult = copyUnitResult;
 window.saveUnitCalc = saveUnitCalc;
 window.v8_limpiarCacheSystem = v8_limpiarCacheSystem;
+window.v8_cambiarModoEntrada = v8_cambiarModoEntrada;
+window.v8_setInventory = v8_setInventory;
