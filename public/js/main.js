@@ -9,6 +9,7 @@ import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
 import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.68';
+import { initAssistant } from './modules/assistant.js?v=11.73';
 
 
 
@@ -182,6 +183,13 @@ function iniciarApp() {
             initVersionWatcher();
 
             initV8_GestionMode();
+
+            // --- ASISTENTE VIRTUAL DE PEDIDOS ---
+            try {
+                initAssistant({ name: displayName, role: userRole });
+            } catch (errAssist) {
+                console.warn("Aviso iniciando asistente:", errAssist);
+            }
 
             // --- MANTENIMIENTO: Desactivado para conservar todo el histórico de pedidos ---
             // if (userRole === 'admin') {
