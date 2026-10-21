@@ -448,16 +448,42 @@ async function enviarPreguntaAsistente(msgText, userObj) {
         // Recoger contexto dinámico
         const contextoVivo = await recopilarContextoPedidos(userObj.name, userObj.role);
         
-        // Búsqueda puntual si menciona productos
+        // Búsqueda puntual si menciona productos o proveedores
         let contextoProducto = "";
-        const palabrasClave = msgText.split(/\s+/).filter(w => w.length > 3 && !/^(como|cuando|donde|quien|para|hacer|tengo|pedir|pedido|borrador|proveedor)$/i.test(w));
+        const palabrasClave = msgText.replace(/[?¿!¡,.:;()"]/g, ' ')
+            .split(/\s+/)
+            .map(w => w.trim())
+            .filter(w => w.length >= 3 && !/^(como|cuando|donde|quien|para|hacer|tengo|pedir|pedido|borrador|proveedor|puedes|calcular|hace|falta|trae|unos|unas|este|esta)$/i.test(w));
+
         for (const p of palabrasClave) {
             const detalle = await buscarDetalleProducto(p);
-            if (detalle) {
+            if (detalle && !contextoProducto.includes(detalle)) {
                 contextoProducto += detalle;
-                break;
             }
         }
+
+        // Si menciona un proveedor específico, revisar su borrador y productos
+        try {
+            const provsSnap = await db.collection("proveedores").get();
+            for (const provDoc of provsSnap.docs) {
+                if (msgText.toLowerCase().includes(provDoc.id.toLowerCase())) {
+                    try {
+                        const bDoc = await db.collection("borradores").doc(provDoc.id).get();
+                        if (bDoc.exists && bDoc.data() && bDoc.data().items && Object.keys(bDoc.data().items).length > 0) {
+                            const itms = bDoc.data().items;
+                            contextoProducto += `\nDETALLE DEL BORRADOR ABIERTO PARA "${provDoc.id}":\n`;
+                            for (const [k, v] of Object.entries(itms)) {
+                                const cleanK = k.replace(/^[A-Z0-9]+_/, '').replace(/_/g, ' ');
+                                contextoProducto += `• ${cleanK}: ${v}\n`;
+                            }
+                        } else {
+                            contextoProducto += `\nESTADO DE "${provDoc.id}": Actualmente NO tiene ningún borrador abierto (borrador vacío).\n`;
+                        }
+                    } catch (bErr) {}
+                    break;
+                }
+            }
+        } catch (prvErr) {}
 
         const systemPrompt = `Eres el Asistente Virtual Oficial de Compras, Almacén y Pedidos de Cafetería El Raíl.
 Tu función es ayudar a los trabajadores y administradores a gestionar los pedidos de materias primas e insumos de forma rápida, eficiente y muy precisa.
@@ -471,6 +497,7 @@ DIRECTIVAS ESTRICTAS DE RESPUESTA:
 - NUNCA inventes productos ni precios que no conozcas con certeza; si un producto no aparece en el catálogo, indícale amablemente al usuario que consulte con Roberto o administración.
 - Si pregunta por borradores abiertos, dile exactamente qué proveedores tienen artículos pendientes y quién los modificó.
 - Si pregunta por días de compra o festivos, utiliza la información oficial de proveedores (Mercadona y Vecino los lunes, Mercamadrid martes y sábados, Makro sábados). Recuerda que los festivos cierran mayoristas como Mercamadrid o Vecino.
+- Si pregunta por un proveedor concreto (ej. Makro, Mercamadrid...) y qué hace falta o si hay pedido, indícale el estado de su borrador y sus pautas de compra.
 - Si pregunta sobre cómo pedir en Modo Lector o Gestión:
   • Modo Gestión: Seleccionar proveedor, añadir cantidades en la tabla y pulsar "ENVIAR" o compartir por WhatsApp.
   • Modo Lector: Diseñado para pasar inventario físico rápido en el almacén con checklist de casillas.
@@ -490,15 +517,27 @@ DIRECTIVAS ESTRICTAS DE RESPUESTA:
             ]
         };
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
+        const models = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-flash-lite-latest"];
+        for (const m of models) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 7000);
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
 
-        if (res.ok) {
-            const data = await res.json();
-            reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (res.ok) {
+                    const data = await res.json();
+                    reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (reply) break;
+                }
+            } catch (mErr) {
+                console.warn(`Error llamando a modelo ${m}:`, mErr);
+            }
         }
 
     } catch (err) {
