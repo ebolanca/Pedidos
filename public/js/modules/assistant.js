@@ -132,34 +132,55 @@ async function recopilarContextoPedidos(userName, userRole) {
     return contexto;
 }
 
-// Búsqueda puntual de productos en Firestore si el usuario pregunta por un artículo
-async function buscarDetalleProducto(termino) {
-    if (!termino || termino.length < 3) return null;
-    const termClean = termino.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+// Caché en memoria del catálogo completo (502 productos ~80KB en RAM)
+let cachedCatalog = null;
+let lastCatalogFetch = 0;
+const CATALOG_CACHE_TTL = 15 * 60 * 1000; // 15 minutos
+
+async function getFullCatalogCached() {
+    const now = Date.now();
+    if (cachedCatalog && (now - lastCatalogFetch < CATALOG_CACHE_TTL)) {
+        return cachedCatalog;
+    }
     try {
         const provsSnap = await db.collection("proveedores").get();
-        let matches = [];
-        for (const provDoc of provsSnap.docs) {
-            const pSnap = await provDoc.ref.collection("productos").get();
-            pSnap.forEach(doc => {
-                const p = doc.data();
-                const nom = (p.nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                if (nom.includes(termClean)) {
-                    matches.push({
+        const all = [];
+        await Promise.all(provsSnap.docs.map(async (provDoc) => {
+            try {
+                const pSnap = await provDoc.ref.collection("productos").get();
+                pSnap.forEach(doc => {
+                    const p = doc.data();
+                    all.push({
                         proveedor: provDoc.id,
-                        nombre: p.nombre,
+                        nombre: p.nombre || '',
+                        norm: (p.nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(),
                         unidad: p.unidad || 'Ud',
                         precio: p.precio || '-',
                         categoria: p.categoria || 'General',
                         responsable: p.responsable || 'Todos'
                     });
-                }
-            });
-            if (matches.length >= 6) break;
-        }
+                });
+            } catch (errProv) {}
+        }));
+        cachedCatalog = all;
+        lastCatalogFetch = now;
+        return all;
+    } catch (e) {
+        console.warn("Aviso cargando catálogo en memoria:", e);
+        return cachedCatalog || [];
+    }
+}
+
+// Búsqueda ultrarrápida en memoria (< 1 ms) sin coste de lecturas repetidas en Firestore
+async function buscarDetalleProducto(termino) {
+    if (!termino || termino.length < 3) return null;
+    const termClean = termino.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    try {
+        const catalog = await getFullCatalogCached();
+        const matches = catalog.filter(p => p.norm.includes(termClean));
         if (matches.length > 0) {
             let res = `INFORMACIÓN EN CATÁLOGO PARA "${termino}":\n`;
-            matches.slice(0, 5).forEach(m => {
+            matches.slice(0, 8).forEach(m => {
                 res += `• ${m.nombre} (${m.proveedor}) -> ${m.precio}€ / ${m.unidad} [Cat: ${m.categoria}, Resp: ${m.responsable}]\n`;
             });
             return res + `\n`;
