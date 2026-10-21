@@ -335,8 +335,7 @@ export function initAssistant(userProfile = {}) {
         <div id="assistant-pedidos-chips" style="display: none; padding: 8px 12px 10px 12px; background: #ffffff; border-top: 1px solid #f8fafc; flex-wrap: wrap; gap: 6px; max-height: 135px; overflow-y: auto;">
             <button type="button" class="assistant-chip-btn" data-query="¿Qué borradores hay abiertos ahora mismo?">🛒 Borradores abiertos</button>
             <button type="button" class="assistant-chip-btn" data-query="¿Cuáles fueron los últimos pedidos realizados?">📋 Últimos pedidos</button>
-            <button type="button" class="assistant-chip-btn" data-query="¿A qué proveedor le compramos los vasos de café y servilletas?">☕ Vasos y servilletas</button>
-            <button type="button" class="assistant-chip-btn" data-query="¿Qué días se compra en cada proveedor y cómo afectan los festivos?">📅 Días de compra y festivos</button>
+                        <button type="button" class="assistant-chip-btn" data-query="¿Qué días se compra en cada proveedor y cómo afectan los festivos?">📅 Días de compra y festivos</button>
             <button type="button" class="assistant-chip-btn" data-query="¿Cómo funciona el recuento de stock en modo Lector?">📖 Ayuda Modo Lector</button>
         </div>
 

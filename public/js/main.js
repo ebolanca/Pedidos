@@ -9,7 +9,7 @@ import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
 import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.68';
-import { initAssistant } from './modules/assistant.js?v=11.75';
+import { initAssistant } from './modules/assistant.js?v=11.76';
 
 
 
