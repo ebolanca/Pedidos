@@ -30,6 +30,7 @@ const CATEGORIAS_OFICIALES = [
     "Limpieza y Químicos",
     "Menaje y Utensilios",
     "Desechables y Envases",
+    "Refrigerados",
     "Oficina y Mantenimiento"
 ];
 

@@ -2012,5 +2012,102 @@ input[type="text"] {
   width: fit-content;
 }
 
+/* === MODAL COMPARTIR LECTOR & FOOTER ASISTENTE IA === */
+.btn-share-channel {
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-share-channel:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.v8-assistant-footer-container {
+  padding: 24px 16px 115px 16px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-assistant-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 440px;
+  background: #0f172a;
+  color: #ffffff;
+  border: 2px solid #22d3ee;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 15px rgba(6, 182, 212, 0.25);
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.btn-assistant-footer:active {
+  transform: scale(0.98);
+}
+
+.assistant-footer-avatar {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1.5px solid #22d3ee;
+  background: #1e293b;
+}
+
+.assistant-footer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.assistant-footer-status {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  background: #10b981;
+  border: 1.5px solid #0f172a;
+  border-radius: 50%;
+}
+
+.assistant-footer-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.assistant-footer-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assistant-footer-subtitle {
+  font-size: 11px;
+  color: #22d3ee;
+  font-weight: 500;
+}
+
+.assistant-footer-arrow {
+  color: #22d3ee;
+  font-size: 20px;
+}
+
 
 

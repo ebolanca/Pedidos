@@ -211,6 +211,24 @@ async function guardarLogAsistente(pregunta, respuesta, userObj) {
 // -------------------------------------------------------------
 // CONSTRUCCIÓN E INICIALIZACIÓN DE LA INTERFAZ
 // -------------------------------------------------------------
+export function getAssistantFooterHtml() {
+    return `
+        <div class="v8-assistant-footer-container">
+            <button type="button" class="btn-assistant-footer" onclick="toggleAssistantModal()" title="Abrir Asistente IA de Pedidos">
+                <div class="assistant-footer-avatar">
+                    <img src="img/ai-assistant.jpg" alt="AI" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80';">
+                    <span class="assistant-footer-status"></span>
+                </div>
+                <div class="assistant-footer-info">
+                    <span class="assistant-footer-title">¿Dudas con el pedido? Pregunta al Asistente IA</span>
+                    <span class="assistant-footer-subtitle">El Raíl • Asistente Virtual Online</span>
+                </div>
+                <span class="material-icons-round assistant-footer-arrow">chat</span>
+            </button>
+        </div>
+    `;
+}
+
 export function initAssistant(userProfile = {}) {
     if (assistantInitialized) return;
     assistantInitialized = true;
@@ -219,56 +237,9 @@ export function initAssistant(userProfile = {}) {
     const userRole = userProfile.role || (auth.currentUser && ADMIN_EMAILS.includes(auth.currentUser.email) ? 'admin' : 'empleado');
     const userEmail = auth.currentUser ? auth.currentUser.email : '';
 
-    // 1. Inyectar botón flotante
-    const floatingBtn = document.createElement('button');
-    floatingBtn.id = 'btn-open-assistant-pedidos';
-    floatingBtn.type = 'button';
-    floatingBtn.setAttribute('aria-label', 'Abrir Asistente de Pedidos');
-    floatingBtn.title = 'Asistente Virtual de Pedidos';
-    floatingBtn.style.cssText = `
-        position: fixed;
-        bottom: 22px;
-        right: 20px;
-        z-index: 99999;
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        background: #0f172a;
-        color: #ffffff;
-        border: 2px solid #22d3ee;
-        padding: 5px 15px 5px 6px;
-        border-radius: 9999px;
-        box-shadow: 0 10px 25px rgba(6, 182, 212, 0.4);
-        cursor: pointer;
-        transition: transform 0.2s ease, bottom 0.25s ease, box-shadow 0.2s ease;
-        text-decoration: none;
-        font-family: 'Inter', -apple-system, sans-serif;
-    `;
-    floatingBtn.innerHTML = `
-        <div style="position: relative; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 1.5px solid #22d3ee; background: #1e293b;">
-            <img src="img/ai-assistant.jpg" alt="AI" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80';">
-            <span style="position: absolute; bottom: 1px; right: 1px; width: 10px; height: 10px; background: #10b981; border: 1.5px solid #0f172a; border-radius: 50%;"></span>
-        </div>
-        <div style="display: flex; flex-direction: column; text-align: left; line-height: 1.15;">
-            <span style="font-size: 13px; font-weight: 800; color: #ffffff; letter-spacing: -0.2px;">Asistente Pedidos</span>
-            <span style="font-size: 10px; color: #22d3ee; font-weight: 600;">El Raíl • Online</span>
-        </div>
-    `;
-
-    floatingBtn.addEventListener('click', toggleAssistantModal);
-    document.body.appendChild(floatingBtn);
-
-    // Ajustar posición si la barra inferior de pedidos se muestra
-    const observer = new MutationObserver(() => {
-        const bottomBar = document.getElementById('v8-bottom-bar');
-        if (bottomBar && !bottomBar.classList.contains('hidden') && bottomBar.style.display !== 'none') {
-            floatingBtn.style.bottom = '105px';
-        } else {
-            floatingBtn.style.bottom = '22px';
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
-
+    // Exponer helpers de control y apertura
+    window.toggleAssistantModal = toggleAssistantModal;
+    window.getAssistantFooterHtml = getAssistantFooterHtml;
     // 2. Inyectar Modal de Chat
     const modal = document.createElement('div');
     modal.id = 'assistant-pedidos-modal';
@@ -417,7 +388,7 @@ export function initAssistant(userProfile = {}) {
     });
 }
 
-function toggleAssistantModal() {
+export function toggleAssistantModal() {
     isAssistantOpen = !isAssistantOpen;
     const modal = document.getElementById('assistant-pedidos-modal');
     if (modal) {

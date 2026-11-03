@@ -9,7 +9,7 @@ import { haptic, updateConnectionStatus, redirectToLogin } from './modules/utils
 import { db, auth } from './modules/firebase-init.js?v=11.61';
 import { ejecutarMantenimientoPedidos } from './modules/maintenance.js?v=11.61';
 import { renderHolidayAlerts } from './modules/holiday_alerts.js?v=11.68';
-import { initAssistant } from './modules/assistant.js?v=11.76';
+import { initAssistant, getAssistantFooterHtml, toggleAssistantModal } from './modules/assistant.js?v=11.77';
 
 
 
@@ -401,6 +401,8 @@ function v8_renderDashResults(snap, dashList, isFallback = false) {
             </div>
         </div>`;
     });
+    const footHtml = typeof getAssistantFooterHtml === 'function' ? getAssistantFooterHtml() : '';
+    html += footHtml;
     dashList.innerHTML = html;
 }
 
@@ -1061,7 +1063,11 @@ function v8_renderTabla() {
         groups[cat].push(p); hasItems = true;
     });
 
-    if (!hasItems) { wrapper.innerHTML = `<div style="text-align:center; padding:30px; color:#999">Nada que mostrar</div>`; return; }
+    if (!hasItems) {
+        const foot = typeof getAssistantFooterHtml === 'function' ? getAssistantFooterHtml() : '';
+        wrapper.innerHTML = `<div style="text-align:center; padding:30px; color:#999">Nada que mostrar</div>` + foot;
+        return;
+    }
 
     let catKeys = Object.keys(groups).sort();
     if (catKeys.includes("📌 Extras / Manual")) { catKeys = catKeys.filter(c => c !== "📌 Extras / Manual"); catKeys.unshift("📌 Extras / Manual"); }
@@ -1236,6 +1242,16 @@ function v8_renderTabla() {
         });
         wrapper.appendChild(catContainer);
     });
+
+    // Botón Asistente IA al fondo después del último producto
+    const footHtml = typeof getAssistantFooterHtml === 'function' ? getAssistantFooterHtml() : '';
+    if (footHtml) {
+        const footerDiv = document.createElement("div");
+        footerDiv.innerHTML = footHtml;
+        if (footerDiv.firstElementChild) {
+            wrapper.appendChild(footerDiv.firstElementChild);
+        }
+    }
     document.getElementById("v8-totalCount").innerText = Object.keys(cart).length;
 }
 
@@ -2025,6 +2041,7 @@ async function v9_abrirProveedorResumen(provName) {
         v9_currentData = doc.data();
         v9_currentData.catalogoNombres = {};
         v9_currentData.catalogoCategorias = {};
+        v9_currentData.catalogoUnidades = {};
         v9_currentData.catalogoPrecios = {};
         v9_currentData.catalogoPesos = {};
         v9_currentData.catalogoIvas = {};
@@ -2036,6 +2053,7 @@ async function v9_abrirProveedorResumen(provName) {
                 const data = d.data();
                 v9_currentData.catalogoNombres[d.id] = data.nombre;
                 v9_currentData.catalogoCategorias[d.id] = data.categoria || "General";
+                v9_currentData.catalogoUnidades[d.id] = data.unidad || "";
                 v9_currentData.catalogoPrecios[d.id] = data.precio || "";
                 v9_currentData.catalogoPesos[d.id] = data.peso || "1";
                 v9_currentData.catalogoIvas[d.id] = data.iva || 0;
@@ -2204,6 +2222,9 @@ function v9_renderListaLector() {
         html += `</div>`;
     }
 
+    const footHtml = typeof getAssistantFooterHtml === 'function' ? getAssistantFooterHtml() : '';
+    html += footHtml;
+
     document.getElementById("v9-prod-list").innerHTML = html;
 }
 
@@ -2232,6 +2253,191 @@ async function v9_borrarPedidoActual() {
         v9_cargarProveedoresResumen();
         v8_cargarDashboardHistorial();
     } catch (e) { alert("Error: " + e.message); }
+}
+
+// ==========================================
+// 📤 COMPARTIR LISTADO DE PROVEEDOR (MODO LECTOR)
+// ==========================================
+function v9_abrirModalCompartir() {
+    haptic();
+    const modal = document.getElementById('modalCompartirLector');
+    if (!modal) return;
+
+    const provNameEl = document.getElementById('compartirLectorProvName');
+    if (provNameEl) provNameEl.innerText = currentLectorProv || 'Proveedor';
+
+    const chk = document.getElementById('chk-compartir-solo-pendientes');
+    if (chk) chk.checked = false;
+
+    v9_actualizarTextoCompartirModal();
+    modal.classList.add('active');
+}
+
+function cerrarModalCompartirLector() {
+    const modal = document.getElementById('modalCompartirLector');
+    if (modal) modal.classList.remove('active');
+}
+
+function v9_generarTextoCompartirLector(soloPendientes = false) {
+    const prov = currentLectorProv || "Proveedor";
+    const items = v9_currentData.items || {};
+    const notas = v9_currentData.notas || {};
+    const catalogo = v9_currentData.catalogoNombres || {};
+    const categorias = v9_currentData.catalogoCategorias || {};
+    const unidades = v9_currentData.catalogoUnidades || {};
+
+    let lineas = [];
+    for (let k in items) {
+        const qty = items[k];
+        if (qty > 0) {
+            const isChecked = v9_checkedIds.has(k);
+            if (soloPendientes && isChecked) continue;
+
+            let nombreReal = catalogo[k];
+            let catReal = categorias[k] || "General";
+            let unidadReal = unidades[k] || "";
+
+            if (!nombreReal) {
+                if (k.startsWith("manual_")) {
+                    nombreReal = v8_getNombreManual(k) + " (M)";
+                    catReal = "Manual";
+                } else {
+                    const parts = k.split('_');
+                    nombreReal = parts.length > 2 ? parts.slice(2).join(' ').replace(/_/g, ' ') : k;
+                }
+            }
+
+            const nota = notas[k] ? ` (Nota: ${notas[k]})` : "";
+            lineas.push({
+                id: k,
+                nombre: nombreReal,
+                cantidad: qty,
+                unidad: unidadReal,
+                categoria: catReal,
+                nota: nota,
+                checked: isChecked
+            });
+        }
+    }
+
+    if (lineas.length === 0) {
+        return "";
+    }
+
+    const ahora = new Date();
+    const fechaStr = ahora.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const horaStr = ahora.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+
+    let t = `📋 *LISTADO: ${prov.toUpperCase()}*\n`;
+    t += `📅 ${fechaStr} ${horaStr} | 👤 ${userName || 'El Raíl'}\n`;
+    if (soloPendientes) {
+        t += `🔍 _(Solo productos pendientes de tachar)_\n`;
+    }
+    t += `--------------------------------\n`;
+
+    if (v9_sortMode === 'category') {
+        const porCat = {};
+        lineas.forEach(l => {
+            if (!porCat[l.categoria]) porCat[l.categoria] = [];
+            porCat[l.categoria].push(l);
+        });
+
+        Object.keys(porCat).sort().forEach(cat => {
+            t += `\n*${cat.toUpperCase()}*\n`;
+            porCat[cat].sort((a, b) => a.nombre.localeCompare(b.nombre));
+            porCat[cat].forEach(l => {
+                const mark = l.checked ? "✅" : "▫️";
+                const u = l.unidad ? ` ${l.unidad}` : "";
+                t += `${mark} ${l.cantidad}${u} - ${l.nombre}${l.nota}\n`;
+            });
+        });
+    } else {
+        lineas.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        lineas.forEach(l => {
+            const mark = l.checked ? "✅" : "▫️";
+            const u = l.unidad ? ` ${l.unidad}` : "";
+            t += `${mark} ${l.cantidad}${u} - ${l.nombre}${l.nota}\n`;
+        });
+    }
+
+    t += `\n--------------------------------\n`;
+    t += `📦 Total productos: ${lineas.length}`;
+    return t;
+}
+
+function v9_actualizarTextoCompartirModal() {
+    const chk = document.getElementById('chk-compartir-solo-pendientes');
+    const soloPendientes = chk ? chk.checked : false;
+    const txt = v9_generarTextoCompartirLector(soloPendientes);
+    const textarea = document.getElementById('compartirLectorTexto');
+    const countBadge = document.getElementById('compartir-count-badge');
+
+    if (textarea) {
+        textarea.value = txt || "No hay productos con cantidad en este listado.";
+    }
+
+    if (countBadge) {
+        const totalItems = (txt.match(/^(?:✅|▫️)/gm) || []).length;
+        countBadge.innerText = `${totalItems} items`;
+    }
+}
+
+function v9_enviarCompartirCanal(canal) {
+    haptic();
+    const textarea = document.getElementById('compartirLectorTexto');
+    const texto = textarea ? textarea.value.trim() : "";
+
+    if (!texto || texto.startsWith("No hay productos")) {
+        showToast("⚠️ El listado está vacío", "warning");
+        return;
+    }
+
+    const prov = currentLectorProv || "Proveedor";
+
+    if (canal === 'whatsapp') {
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+        window.open(url, '_blank');
+    } else if (canal === 'telegram') {
+        const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodeURIComponent(texto)}`;
+        window.open(url, '_blank');
+    } else if (canal === 'copiar') {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(texto).then(() => {
+                showToast("📋 Listado copiado al portapapeles", "success");
+            }).catch(() => {
+                textarea.select();
+                document.execCommand('copy');
+                showToast("📋 Listado copiado", "success");
+            });
+        } else {
+            textarea.select();
+            document.execCommand('copy');
+            showToast("📋 Listado copiado", "success");
+        }
+    } else if (canal === 'nativo') {
+        if (navigator.share) {
+            navigator.share({
+                title: `Listado ${prov} - El Raíl`,
+                text: texto
+            }).catch(e => {
+                if (e.name !== 'AbortError') console.warn(e);
+            });
+        } else {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(texto).then(() => {
+                    showToast("📋 Dispositivo sin menú nativo: Copiado al portapapeles", "info");
+                });
+            } else {
+                textarea.select();
+                document.execCommand('copy');
+                showToast("📋 Copiado al portapapeles", "info");
+            }
+        }
+    } else if (canal === 'email') {
+        const subject = `Listado ${prov} - El Raíl`;
+        const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(texto)}`;
+        window.location.href = url;
+    }
 }
 
 function v9_volverInicio() {
@@ -2385,6 +2591,11 @@ window.guardarPedidoFinal = guardarPedidoFinal;
 window.v8_copiarTextoHistorial = v8_copiarTextoHistorial;
 window.v8_cargarPedidoHistorial = v8_cargarPedidoHistorial;
 window.v9_volverInicio = v9_volverInicio;
+window.v9_abrirModalCompartir = v9_abrirModalCompartir;
+window.cerrarModalCompartirLector = cerrarModalCompartirLector;
+window.v9_actualizarTextoCompartirModal = v9_actualizarTextoCompartirModal;
+window.v9_enviarCompartirCanal = v9_enviarCompartirCanal;
+window.toggleAssistantModal = toggleAssistantModal;
 window.v9_toggleSortMode = v9_toggleSortMode;
 window.v9_borrarPedidoActual = v9_borrarPedidoActual;
 window.v8_eliminarPedidoHistorial = v8_eliminarPedidoHistorial;
